@@ -111,7 +111,7 @@ Por definición, al inicio del contrato en `t=0`, el colateral es mayor que la d
     
 - **Visualización:**
   
-      ![Dinámica de Deuda y Colateral](https://github.com/user-attachments/assets/5613dc64-636a-4703-9a19-24bb1de5fe78)
+![Dinámica de Deuda y Colateral](https://github.com/user-attachments/assets/5613dc64-636a-4703-9a19-24bb1de5fe78)
 
       > - **Eje Y:** Valor en USDC
       > - **Eje X:** Tiempo (desde `t=0` hasta `T=1`)
