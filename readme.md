@@ -1,7 +1,3 @@
-Claro. Basado en todo lo que hemos discutido, aquí tienes una propuesta de `README.md` que puedes usar para tu repositorio. Este documento enmarca el proyecto como un MVP (Producto Mínimo Viable) y justifica las decisiones de diseño tomadas para lograr una prueba de concepto funcional y clara.
-
----
-
 # DebtHook: Un Protocolo de Lending MVP en Uniswap v4
 
 ## Descripción General
@@ -26,22 +22,22 @@ Para lograr un prototipo funcional y enfocarnos en la mecánica central, se toma
 ### 2. Liquidación Total
 
 * **Decisión:** Cuando un préstamo se vuelve elegible para liquidación (el valor del colateral es menor o igual a la deuda), el 100% del colateral se vende.
-* **Razón de Simplificación:** La lógica para una liquidación total es binaria y directa. Un sistema de **liquidaciones parciales** requeriría cálculos más complejos para determinar cuánto colateral vender para restaurar la "salud" de la posición, además de gestionar el estado restante y permitir múltiples eventos de liquidación para un mismo préstamo.
+* **Razón de Simplificación:** La lógica para una liquidación total es binaria y directa. Esto hace que se pueda interpretar como un derivado, aunque exótico, convencional. Ver el paper "theory" para leer mas de los derivados sintéticos que asemeja.
 
 ### 3. Tasas de Interés Fijas
 
 * **Decisión:** La tasa de interés de un préstamo se establece en el momento de su creación y permanece constante durante toda su vida.
-* **Razón de Simplificación:** Esto hace que el cálculo de la deuda pendiente (`$D_t = D_0 \cdot e^{rt}$`) sea predecible y fácil de computar. Un modelo de **tasas variables**, como los que se ven en Aave o Compound, requeriría un sistema más complejo que ajustara las tasas basándose en la utilización del capital en un pool de liquidez, añadiendo una capa significativa de gestión de estado.
+* **Razón de Simplificación:** Esto hace que el cálculo de la deuda pendiente (`$D_t = D_0 \cdot e^{rt}$`) sea predecible y fácil de calcular. Además, permite que se realize "price discovery" orgánicamente en el mercado de deuda, que es además un objetivo del protocolo: Tener una fuente nativa para calcular el "yield curve" implícito entre USDC y ETH.
 
 ### 4. Posiciones Intransferibles (No son NFTs)
 
 * **Decisión:** Las posiciones de deuda (tanto del prestamista como del prestatario) son intransferibles y están vinculadas a las direcciones originales. No se emiten tokens ERC-721 para representarlas.
-* **Razón de Simplificación:** Evita la sobrecarga de implementar el estándar ERC-721, que incluye lógica para transferencias, aprobaciones, metadatos (`tokenURI`) y la gestión de la propiedad. Al mantener las posiciones como simples entradas en un `mapping` dentro del contrato, nos enfocamos exclusivamente en la funcionalidad de préstamo y liquidación.
+* **Razón de Simplificación:** Al mantener las posiciones como simples entradas en un `mapping` dentro del contrato, nos enfocamos exclusivamente en la funcionalidad de préstamo y liquidación.
 
 ### 5. Sin Fondo de Seguros (Riesgo Asumido por el Prestamista)
 
-* **Decisión:** El protocolo no implementa un módulo de seguridad, tesorería o fondo de seguros para cubrir las "deudas malas" que puedan surgir.
-* **Razón de Simplificación:** La creación de un fondo de este tipo implicaría mecanismos de gobernanza, una estructura de comisiones para capitalizarlo y políticas para su uso. En este MVP, el riesgo de una liquidación fallida (donde el `USDC` obtenido es menor que la deuda debido a slippage o un crash del mercado) es **asumido en su totalidad por el prestamista**. Esto presenta un modelo de riesgo puro.
+* **Decisión:** El protocolo no implementa un módulo de seguridad, tesorería o fondo de seguros para cubrir las "deudas malas" que puedan surgir. 
+* **Razón de Simplificación:** El riesgo de liquidez es uno de los principales drivers de tasas de interés en este mercado. En este MVP, el riesgo de una liquidación fallida (donde el `USDC` obtenido es menor que la deuda debido a slippage o un crash del mercado) es **asumido en su totalidad por el prestamista**. Esto presenta un modelo de riesgo puro.
 
 ## Arquitectura Central
 
@@ -51,25 +47,36 @@ El sistema se compone de tres elementos principales:
 2.  **Pool de Uniswap v4 (`USDC/ETH`)**: No se utiliza por sus hooks, sino como una **infraestructura de liquidación pasiva**. El `DebtHook` lo invoca para ejecutar swaps durante las liquidaciones.
 3.  **Dependencias Externas**:
     * **Oráculo de Precios (Chainlink)**: Para obtener de forma fiable el valor en tiempo real del colateral (`ETH`).
-        * **Keepers (Bots)**: Actores externos automatizados que son necesarios para monitorear el estado de los préstamos y llamar a la función `liquidate()` cuando una posición se vuelve insolvente.
+    * **[NO IMPLEMENTADO] Keepers (Bots)**: Actores externos automatizados que son necesarios para monitorear el estado de los préstamos y llamar a la función `liquidate()` cuando una posición se vuelve insolvente. Por el momento, esa función debe ser llamada por la contraparte que prestó el dinero.
 
-        ## Fundamento Teórico
+## Fundamento Teórico (agregar link a theory)
 
-        Este protocolo es la implementación práctica de un modelo financiero donde:
-        - La posición del **Prestatario** es equivalente a una **Opción Call Larga** sobre su colateral.
-        - La posición del **Prestamista** es equivalente a un **Bono + una Opción Put Corta**.
-        - La función de liquidación es el mecanismo de ejecución que asegura el cumplimiento de los términos del contrato cuando el valor del colateral (`$C_t$`) alcanza el de la deuda (`$D_t$`).
+Este protocolo es la implementación práctica de un modelo financiero donde:
+- La posición del **Prestatario** es equivalente a una **Opción Call Larga** sobre su colateral.
+- La posición del **Prestamista** es equivalente a un **Bono + una Opción Put Corta**.
+- La **función de liquidación** es equivalente a una **Barrera dinámica**, es el mecanismo de ejecución que asegura el cumplimiento de los términos del contrato cuando el valor del colateral (`$C_t$`) alcanza el de la deuda (`$D_t$`).
 
-        ## Riesgos y Próximos Pasos
+## Riesgos y Próximos Pasos
 
-        Como MVP, los principales riesgos radican en las dependencias y simplificaciones:
-        - **Riesgo del Oráculo:** El sistema es tan seguro como su feed de precios.
-        - **Riesgo de los Keepers:** El protocolo depende de la acción oportuna y racional de los keepers.
-        - **Riesgo de MEV:** Las liquidaciones son vulnerables a ser explotadas por MEV.
+Como MVP, los principales riesgos radican en las dependencias y simplificaciones:
+- **Riesgo del Oráculo:** El sistema es tan seguro como su feed de precios.
+- **Riesgo de los Keepers:** El protocolo depende de la acción oportuna y racional de los keepers.
+- **Riesgo de MEV:** Las liquidaciones son vulnerables a ser explotadas por MEV.
 
-        Los próximos pasos para evolucionar más allá del MVP incluirían:
-        - Implementar liquidaciones parciales.
-        - Soportar múltiples mercados y colaterales.
-        - Introducir un modelo de tasas de interés dinámicas.
-        - Tokenizar las posiciones como NFTs para permitir su transferencia y uso en otros protocolos.
-        - Diseñar y capitalizar un fondo de seguros para mitigar el riesgo de los prestamistas.
+Los próximos pasos para evolucionar más allá del MVP incluirían:
+- Soportar múltiples mercados y colaterales.
+- Tener un TWAP oracle de Uniswap?? Hay que explorar la idea.
+
+---
+# WIP // No detallado:
+
+- Cómo se conecta con el front end? Cómo funciona el B2B orderbook?
+
+# Veremos si se implementa:
+- Pagar gas con USDC
+- Integrar "verificabilidad" de Eigen al B2B orderbook
+
+# Cómo aprovechar los Hooks de v4?
+- Hacer Pools Vetados (Solo humanos, por ejemplo)
+- Hacer Payback de Fees (La idea es tener mucha liquidez y que la gente la use "regardless", pero tener un payback puede ser clave para nosotros)
+- Integrar algo de privacidad para mitigar los ataques MEV
