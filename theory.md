@@ -113,10 +113,10 @@ Por definición, al inicio del contrato en `t=0`, el colateral es mayor que la d
   
 ![Dinámica de Deuda y Colateral](https://github.com/user-attachments/assets/5613dc64-636a-4703-9a19-24bb1de5fe78)
 
-      > - **Eje Y:** Valor en USDC
-      > - **Eje X:** Tiempo (desde `t=0` hasta `T=1`)
-      > - **Curva de la Deuda:** Una función exponencial creciente, que parte de `$D_0$` y termina en `$D_0 \cdot e^{rT}$`.
-      > - **Curva del Colateral:** Un camino aleatorio (proceso estocástico) que parte de `$C_0$`. La liquidación se activa si `$C_t$` intersecta a `$D_t$`.                          
+- **Eje Y:** Valor en USDC
+- **Eje X:** Tiempo (desde $t=0$ hasta $T=1$)
+- **Curva de la Deuda:** Una función exponencial creciente, que parte de $D_0$ y termina en $D_0 \cdot e^{rT}$.
+- **Curva del Colateral:** Un camino aleatorio (proceso estocástico) que parte de $C_0$. La liquidación se activa si $C_t$ intersecta a $D_t$.                          
 
 #### **Consecuencias Financieras de una Liquidación Anticipada**
 
