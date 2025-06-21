@@ -62,6 +62,7 @@ Como MVP, los principales riesgos radican en las dependencias y simplificaciones
 - **Riesgo del Oráculo:** El sistema es tan seguro como su feed de precios.
 - **Riesgo de los Keepers:** El protocolo depende de la acción oportuna y racional de los keepers.
 - **Riesgo de MEV:** Las liquidaciones son vulnerables a ser explotadas por MEV.
+- **Implementar Chainlink o TWAP:** Eso.
 
 Los próximos pasos para evolucionar más allá del MVP incluirían:
 - Soportar múltiples mercados y colaterales.
