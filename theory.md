@@ -3,8 +3,8 @@
 ## Supuestos
 
 - El interés se determina al inicio del contrato financiero y la tasa se mantiene fija hasta la terminación del contrato.
-- El interés se calcula con una tasa continua del tipo `$e^{rt}$`.
-- El horizonte temporal del contrato es `$T = 1$` año.
+- El interés se calcula con una tasa continua del tipo $e^{rt}$.
+- El horizonte temporal del contrato es $T = 1$ año.
 - Existe liquidez perfecta en el mercado.
 - Los costos de transacción son cero.
 - No hay repago voluntario anticipado; el contrato solo termina por vencimiento o liquidación.
@@ -24,7 +24,7 @@
 Analicemos el caso de Alice, quien posee `1 ETH` y necesita `1000 USDC`.
 
 - **Precio inicial:** `1 ETH = 2000 USDC`
-- **Tasa de interés anual (r):** `10%` o `$r = 0.1$`
+- **Tasa de interés anual (r):** `10%` o $r = 0.1$
 
 Alice tiene dos opciones principales:
 
@@ -98,14 +98,14 @@ La respuesta depende del diseño del protocolo financiero. En un entorno DeFi, p
 
 Pensemos en las funciones de valor:
 
-- **Valor de la Deuda (Dt​):** Es una función determinista que crece exponencialmente con el tiempo. El principal es `$D_0$`. $D_t​= D_0​⋅e^{rt}$
-- **Valor del Colateral (Ct​):** Es un proceso estocástico, ya que depende del precio de mercado del activo, `$P_t$`. $C_t​= Q⋅P_t​ Donde `$Q$` es la cantidad de colateral (ej. 1 ETH) y `$P_t$` es el precio (ej. `USDC/ETH`).
+- **Valor de la Deuda (Dt​):** Es una función determinista que crece exponencialmente con el tiempo. El principal es $D_0$. $D_t​= D_0​⋅e^{rt}$
+- **Valor del Colateral (Ct​):** Es un proceso estocástico, ya que depende del precio de mercado del activo, $P_t$. $C_t​= Q⋅P_t$​ Donde $Q$ es la cantidad de colateral (ej. 1 ETH) y $P_t$ es el precio (ej. `USDC/ETH`).
 
-Por definición, al inicio del contrato en `t=0`, el colateral es mayor que la deuda: `$C_0 > D_0$`.
+Por definición, al inicio del contrato en `t=0`, el colateral es mayor que la deuda: $C_0 > D_0$.
 
 #### **Criterio de Liquidación**
 
-**Idea 1: Liquidar cuando `$C_t = D_t$`**
+**Idea 1: Liquidar cuando $C_t = D_t$**
 
 - **Intuición:** Este es el último momento en el que el prestamista puede recuperar su capital y los intereses devengados hasta ese instante, sin sufrir pérdidas. Si se espera más y el precio del colateral sigue cayendo, el prestamista perderá dinero.
     
@@ -130,7 +130,7 @@ Vamos a examinar las funciones de pago para cada participante.
 
 La condición de liquidación (`el primero de t=T o C_t = D_t`) introduce **dependencia de la trayectoria** (path dependency). El resultado final ya no depende solo del precio del colateral en la fecha de vencimiento, sino de si el precio del colateral ha tocado un "nivel barrera" en algún momento durante la vida del préstamo.
 
-Este "nivel barrera" (`$H_t$`) no es fijo, sino que se mueve en el tiempo: es el valor creciente de la deuda, `$H_t = D_t = D_0e^{rt}$`.
+Este "nivel barrera" ($H_t$) no es fijo, sino que se mueve en el tiempo: es el valor creciente de la deuda, $H_t = D_t = D_0e^{rt}$.
 
 Así es como afecta a las funciones de pago y a las analogías con derivados:
 
@@ -140,14 +140,14 @@ Así es como afecta a las funciones de pago y a las analogías con derivados:
 
 **Opción Call de Barrera Descendente (Down-and-Out Call)**.
 - **Activo Subyacente:** El colateral (`ETH`).
-- **Precio de Ejercicio (Strike):** `$D_T$`.
-- **Barrera (`H_t`):** El valor de la deuda, `$D_t$`. Es una barrera móvil y ascendente.
+- **Precio de Ejercicio (Strike):** $D_T$.
+- **Barrera ($H_t$):** El valor de la deuda, $D_t$. Es una barrera móvil y ascendente.
 - **Condición "Out":** La opción queda sin valor si el precio del subyacente cae y toca la barrera.
 
 La cláusula de liquidación añade una condición fatal para la opción de Alice: si el valor de su colateral $C_t$ cae y toca la barrera creciente de la deuda $D_t$, su opción es "noqueada" (knocked out) y deja de existir.
 
-- **Si la barrera NUNCA se toca (`$C_t > D_t$` para todo `$t < T$`):** La opción sobrevive hasta el vencimiento y su payoff sigue siendo `$\max(0, C_T - D_T)$`.
-- **Si la barrera SÍ se toca en un momento `$t_{liq} < T$`:** El colateral se liquida. La opción de Alice se extingue inmediatamente y su valor se convierte en cero. Pierde todo el valor tiempo que le quedaba a la opción y la posibilidad de que el colateral se recuperara.
+- **Si la barrera NUNCA se toca ($C_t > D_t$ para todo $t < T$):** La opción sobrevive hasta el vencimiento y su payoff sigue siendo $\max(0, C_T - D_T)$.
+- **Si la barrera SÍ se toca en un momento $t_{liq} < T$:** El colateral se liquida. La opción de Alice se extingue inmediatamente y su valor se convierte en cero. Pierde todo el valor tiempo que le quedaba a la opción y la posibilidad de que el colateral se recuperara.
 
 ---
 
@@ -157,13 +157,13 @@ La cláusula de liquidación añade una condición fatal para la opción de Alic
 
 **En resumen, la función del prestamista se asemeja a:**
 
-- Poseer un bono libre de riesgo que paga `$D_T$`.
+- Poseer un bono libre de riesgo que paga $D_T$.
 - Haber vendido una Opción Put "Down-and-Out", que es mucho menos riesgosa que una put normal.
 
 La cláusula de liquidación es un mecanismo de gestión de riesgo fundamental para el prestamista. Actúa como un "stop-loss" dinámico que protege su capital.
 
-- **Si la barrera NUNCA se toca:** El payoff no cambia. Recibe `$D_T$` al vencimiento, ya que el prestatario pagará la deuda.
-- **Si la barrera SÍ se toca en `$t_{liq} < T$`:** El contrato se termina. El prestamista recibe el colateral, cuyo valor es exactamente igual al de la deuda en ese momento (`$C_{t_{liq}} = D_{t_{liq}}$`).
+- **Si la barrera NUNCA se toca:** El payoff no cambia. Recibe $D_T$ al vencimiento, ya que el prestatario pagará la deuda.
+- **Si la barrera SÍ se toca en $t_{liq} < T$:** El contrato se termina. El prestamista recibe el colateral, cuyo valor es exactamente igual al de la deuda en ese momento ($C_{t_{liq}} = D_{t_{liq}}$).
 
 ---
 
