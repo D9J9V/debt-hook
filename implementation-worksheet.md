@@ -8,7 +8,7 @@
     * Configurar el framework de desarrollo (Foundry)
     * Configurar el proyecto, incluyendo las dependencias de Uniswap v4 (`v4-core`, `v4-periphery`) y las interfaces de Chainlink.
 
-**Paso 2: Desarrollar el Contrato `DebtHook.sol` (Tu Paso 1 Expandido)**
+**Paso 2: Desarrollar el Contrato `DebtHook.sol`**
 * **Tarea:** Codificar la lógica del protocolo siguiendo la estructura que definimos.
 * **Detalles:**
     * **2.1. Estructura de Datos:** Definir la `struct Loan` y las variables de estado (`mapping(bytes32 => Loan)`, etc.).
