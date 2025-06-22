@@ -13,3 +13,6 @@
 [submodule "dapp"]
 	path = dapp
 	url = git@github.com:D9J9V/debt-hook-dapp.git
+[submodule "v4-docs"]
+	path = v4-docs
+	url = https://github.com/D9J9V/v4-docs.git
