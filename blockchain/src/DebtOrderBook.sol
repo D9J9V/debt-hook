@@ -2,13 +2,13 @@
 pragma solidity ^0.8.24;
 
 import {EIP712} from "solady/utils/EIP712.sol";
-import {SignatureChecker} from "solady/utils/SignatureChecker.sol";
-import {IERC20} from "solady/interfaces/IERC20.sol";
+import {ECDSA} from "solady/utils/ECDSA.sol";
+import {ERC20} from "solady/tokens/ERC20.sol";
 import {IDebtHook} from "./interfaces/IDebtHook.sol";
 
 contract DebtOrderBook is EIP712 {
     IDebtHook public immutable debtHook;
-    IERC20 public immutable usdc;
+    ERC20 public immutable usdc;
 
     mapping(uint256 => bool) public usedNonces;
 
@@ -38,9 +38,19 @@ contract DebtOrderBook is EIP712 {
     constructor(
         address _debtHookAddress,
         address _usdcAddress
-    ) EIP712("DebtOrderBook", "1") {
+    ) {
         debtHook = IDebtHook(_debtHookAddress);
-        usdc = IERC20(_usdcAddress);
+        usdc = ERC20(_usdcAddress);
+    }
+    
+    function _domainNameAndVersion() 
+        internal 
+        pure 
+        override 
+        returns (string memory name, string memory version) 
+    {
+        name = "DebtOrderBook";
+        version = "1";
     }
 
     function fillLimitOrder(
@@ -54,7 +64,7 @@ contract DebtOrderBook is EIP712 {
         );
 
         bytes32 orderHash = _hashLoanLimitOrder(order);
-        address recoveredLender = SignatureChecker.recover(
+        address recoveredLender = ECDSA.recover(
             orderHash,
             signature
         );
@@ -86,6 +96,12 @@ contract DebtOrderBook is EIP712 {
 
     // ... (Otras funciones como cancelOrder) ...
 
+    function hashLoanLimitOrder(
+        LoanLimitOrder calldata order
+    ) public view returns (bytes32) {
+        return _hashLoanLimitOrder(order);
+    }
+    
     function _hashLoanLimitOrder(
         LoanLimitOrder calldata order
     ) internal view returns (bytes32) {

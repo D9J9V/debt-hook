@@ -2,13 +2,15 @@
 pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
+import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {PoolManager} from "v4-core/src/PoolManager.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
+import {ModifyLiquidityParams} from "v4-core/src/types/PoolOperation.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
-import {PRBMath} from "prb-math/PRBMath.sol";
+import {UD60x18} from "prb-math/UD60x18.sol";
 
 // Contratos del protocolo
 import {DebtOrderBook} from "../src/DebtOrderBook.sol";
@@ -17,10 +19,15 @@ import {IDebtHook} from "../src/interfaces/IDebtHook.sol";
 
 // Mocks y utilidades
 import {MockERC20} from "./mocks/MockERC20.sol";
-import {LiquidityAmounts} from "v4-periphery/libraries/LiquidityAmounts.sol";
+import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
 
 contract DebtProtocolTest is Test {
     using CurrencyLibrary for Currency;
+    
+    // Events from DebtHook contract
+    event LoanCreated(bytes32 indexed loanId, address indexed lender, address indexed borrower);
+    event LoanRepaid(bytes32 indexed loanId);
+    event LoanLiquidated(bytes32 indexed loanId, uint256 collateralSold, uint256 debtRecovered);
 
     // --- Componentes del Sistema ---
     PoolManager manager;
@@ -45,7 +52,7 @@ contract DebtProtocolTest is Test {
 
     function setUp() public {
         // 1. Desplegar PoolManager
-        manager = new PoolManager(1_000_000); // Max protocol fee
+        manager = new PoolManager(address(this));
 
         // 2. Desplegar Mocks y Contratos del Protocolo
         usdc = new MockERC20("USD Coin", "USDC", 6);
@@ -54,7 +61,8 @@ contract DebtProtocolTest is Test {
 
         debtHook = new DebtHook(
             IPoolManager(address(manager)),
-            address(0),
+            address(0), // price feed
+            address(0), // debt order book (will be set later)
             treasury,
             currency0,
             currency1,
@@ -94,10 +102,10 @@ contract DebtProtocolTest is Test {
 
         manager.modifyLiquidity(
             key,
-            IPoolManager.ModifyLiquidityParams({
+            ModifyLiquidityParams({
                 tickLower: tickLower,
                 tickUpper: tickUpper,
-                liquidityDelta: int256(liquidity),
+                liquidityDelta: int256(int128(liquidity)),
                 salt: bytes32(0)
             }),
             ""
@@ -128,7 +136,8 @@ contract DebtProtocolTest is Test {
                 nonce: 1
             });
 
-        bytes32 orderHash = orderBook._hashLoanLimitOrder(order);
+        // Hash and sign the order
+        bytes32 orderHash = orderBook.hashLoanLimitOrder(order);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(lenderPrivateKey, orderHash);
         bytes memory signature = abi.encodePacked(r, s, v);
 
@@ -205,7 +214,18 @@ contract DebtProtocolTest is Test {
 
     /// @notice Prueba que una orden no puede ser llenada con una firma incorrecta.
     function test_Revert_When_FillingOrderWithInvalidSignature() public {
-        // ... (código para crear una orden) ...
+        // Create order
+        DebtOrderBook.LoanLimitOrder memory order = DebtOrderBook.LoanLimitOrder({
+            lender: lender,
+            token: address(usdc),
+            principalAmount: 1000 * 1e6, // 1000 USDC
+            collateralRequired: 1 ether,
+            interestRateBips: 500, // 5%
+            maturityTimestamp: uint64(block.timestamp + 30 days),
+            expiry: uint64(block.timestamp + 1 days),
+            nonce: 1
+        });
+        
         bytes memory badSignature = new bytes(65); // Firma vacía o incorrecta
 
         vm.prank(borrower);
