@@ -7,7 +7,7 @@ import {console} from "forge-std/console.sol";
 /// @title Verify Script
 /// @notice Verifies deployed contracts on Etherscan
 contract Verify is Script {
-    function run() external {
+    function run() external view {
         // Read deployment addresses
         string memory deploymentData = vm.readFile("deployments/latest.json");
         address poolManager = vm.parseJsonAddress(deploymentData, ".poolManager");

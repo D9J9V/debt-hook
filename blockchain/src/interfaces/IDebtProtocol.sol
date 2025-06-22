@@ -42,7 +42,7 @@ interface IDebtProtocol {
     
     function liquidateLoan(uint256 loanId) external;
     
-    function calculateRepaymentAmount(Loan memory loan) external pure returns (uint256);
+    function calculateRepaymentAmount(Loan memory loan) external view returns (uint256);
     
     function isLiquidatable(Loan memory loan) external view returns (bool);
     

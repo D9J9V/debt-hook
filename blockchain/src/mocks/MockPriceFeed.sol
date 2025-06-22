@@ -29,7 +29,6 @@ contract MockPriceFeed is IPriceFeed {
     function latestRoundData()
         external
         view
-        override
         returns (
             uint80 roundId,
             int256 price,
@@ -47,7 +46,7 @@ contract MockPriceFeed is IPriceFeed {
         );
     }
 
-    function decimals() external view override returns (uint8) {
+    function decimals() external view returns (uint8) {
         return _decimals;
     }
 

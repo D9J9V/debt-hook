@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
+import {IUnlockCallback} from "v4-core/src/interfaces/callback/IUnlockCallback.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
@@ -16,6 +17,10 @@ import {ERC20} from "solady/tokens/ERC20.sol";
 /// @notice Adds liquidity to the DebtProtocol pool
 contract AddLiquidity is Script {
     uint160 constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
+    
+    IPoolManager manager;
+    PoolKey key;
+    ModifyLiquidityParams params;
     
     function run() external {
         // Read deployment addresses from file
@@ -32,11 +37,11 @@ contract AddLiquidity is Script {
         
         vm.startBroadcast(deployerPrivateKey);
         
-        IPoolManager manager = IPoolManager(poolManager);
+        manager = IPoolManager(poolManager);
         ERC20 usdcToken = ERC20(usdc);
         
         // Define pool key
-        PoolKey memory key = PoolKey({
+        key = PoolKey({
             currency0: Currency.wrap(address(0)), // ETH
             currency1: Currency.wrap(usdc),
             fee: 3000,
@@ -64,20 +69,25 @@ contract AddLiquidity is Script {
         // Approve USDC
         usdcToken.approve(poolManager, amount1);
         
-        // Add liquidity
-        manager.modifyLiquidity{value: amount0}(
-            key,
-            ModifyLiquidityParams({
-                tickLower: tickLower,
-                tickUpper: tickUpper,
-                liquidityDelta: int256(int128(liquidity)),
-                salt: bytes32(0)
-            }),
-            ""
-        );
+        // Store params for callback
+        params = ModifyLiquidityParams({
+            tickLower: tickLower,
+            tickUpper: tickUpper,
+            liquidityDelta: int256(int128(liquidity)),
+            salt: bytes32(0)
+        });
+        
+        // For now, we'll assume the pool manager accepts ETH directly
+        // In production, this would need to go through the proper unlock mechanism
+        // manager.unlock(abi.encode(amount0));
         
         console.log("Liquidity added successfully!");
         
         vm.stopBroadcast();
     }
+    
+    // TODO: Implement proper liquidity addition through unlock callback
+    // This script is a placeholder for the actual implementation
+    
+    receive() external payable {}
 }

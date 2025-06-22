@@ -348,7 +348,7 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
         Loan memory loan
     ) internal view returns (uint256) {
         // Obtener el precio de ETH en USD del oráculo de Chainlink
-        int256 ethPriceUSD = priceFeed.latestAnswer();
+        (, int256 ethPriceUSD,,,) = priceFeed.latestRoundData();
         require(ethPriceUSD > 0, "DebtHook: Invalid price feed");
         
         // Chainlink devuelve precios con 8 decimales

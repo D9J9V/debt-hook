@@ -9,6 +9,7 @@ import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
 import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
+import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {IPriceFeed} from "./interfaces/IPriceFeed.sol";
 import {IDebtProtocol} from "./interfaces/IDebtProtocol.sol";
 import {ERC20} from "solady/tokens/ERC20.sol";
@@ -169,8 +170,9 @@ contract DebtProtocol is IUnlockCallback, IDebtProtocol {
         borrowerLoans[params.borrower].push(loanId);
         lenderLoans[params.lender].push(loanId);
 
-        // Transfer USDC from lender to borrower
-        ERC20(Currency.unwrap(currency1)).transferFrom(params.lender, params.borrower, params.principal);
+        // Transfer USDC from orderBook (msg.sender) to borrower
+        // The orderBook should have already received the USDC from the lender
+        ERC20(Currency.unwrap(currency1)).transferFrom(msg.sender, params.borrower, params.principal);
 
         emit LoanCreated(
             loanId,
@@ -257,7 +259,7 @@ contract DebtProtocol is IUnlockCallback, IDebtProtocol {
             currency1: currency1,
             fee: fee,
             tickSpacing: tickSpacing,
-            hooks: address(0) // No hooks for this pool
+            hooks: IHooks(address(0)) // No hooks for this pool
         });
 
         SwapParams memory params = SwapParams({
@@ -311,7 +313,7 @@ contract DebtProtocol is IUnlockCallback, IDebtProtocol {
 
     // --- View Functions ---
 
-    function calculateRepaymentAmount(Loan memory loan) public pure returns (uint256) {
+    function calculateRepaymentAmount(Loan memory loan) public view returns (uint256) {
         // Calculate continuous compound interest
         UD60x18 principal = ud(loan.principal);
         UD60x18 rate = ud(uint256(loan.interestRate) * 1e18 / 10000 / 365 days);
