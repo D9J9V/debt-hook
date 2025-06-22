@@ -4,10 +4,10 @@ pragma solidity ^0.8.24;
 import {EIP712} from "solady/utils/EIP712.sol";
 import {ECDSA} from "solady/utils/ECDSA.sol";
 import {ERC20} from "solady/tokens/ERC20.sol";
-import {IDebtHook} from "./interfaces/IDebtHook.sol";
+import {IDebtProtocol} from "./interfaces/IDebtProtocol.sol";
 
 contract DebtOrderBook is EIP712 {
-    IDebtHook public immutable debtHook;
+    IDebtProtocol public immutable debtProtocol;
     ERC20 public immutable usdc;
 
     mapping(uint256 => bool) public usedNonces;
@@ -36,10 +36,10 @@ contract DebtOrderBook is EIP712 {
     event OrderCancelled(uint256 indexed nonce, address indexed lender);
 
     constructor(
-        address _debtHookAddress,
+        address _debtProtocolAddress,
         address _usdcAddress
     ) {
-        debtHook = IDebtHook(_debtHookAddress);
+        debtProtocol = IDebtProtocol(_debtProtocolAddress);
         usdc = ERC20(_usdcAddress);
     }
     
@@ -78,16 +78,19 @@ contract DebtOrderBook is EIP712 {
         usedNonces[order.nonce] = true;
 
         usdc.transferFrom(order.lender, address(this), order.principalAmount);
-        usdc.approve(address(debtHook), order.principalAmount);
+        usdc.approve(address(debtProtocol), order.principalAmount);
 
-        debtHook.createLoan{value: msg.value}(
-            IDebtHook.CreateLoanParams({
+        uint64 duration = order.maturityTimestamp > block.timestamp 
+            ? uint64(order.maturityTimestamp - block.timestamp)
+            : 0;
+            
+        debtProtocol.createLoan{value: msg.value}(
+            IDebtProtocol.LoanParams({
                 lender: order.lender,
                 borrower: msg.sender,
-                principalAmount: order.principalAmount,
-                collateralAmount: msg.value,
-                maturityTimestamp: order.maturityTimestamp,
-                interestRateBips: order.interestRateBips
+                principal: order.principalAmount,
+                duration: duration,
+                interestRate: uint64(order.interestRateBips)
             })
         );
 

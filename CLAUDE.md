@@ -25,6 +25,7 @@ debt-hook/
 │   └── lib/            # Utilities and hooks
 └── v4-docs/            # Uniswap v4 documentation (submodule)
     └── docs/           # Implementation guides and best practices
+```
 
 ## Common Commands
 
@@ -59,6 +60,8 @@ cd dapp && pnpm lint
 ```
 
 ## Architecture Overview
+
+Read the Protocol Review to understand current status of the protocol (PROTOCOL_REVIEW.md)
 
 ### Smart Contract Architecture
 The protocol uses two main contracts:

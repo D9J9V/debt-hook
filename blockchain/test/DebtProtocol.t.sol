@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
-import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {PoolManager} from "v4-core/src/PoolManager.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
@@ -11,81 +10,142 @@ import {ModifyLiquidityParams} from "v4-core/src/types/PoolOperation.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {UD60x18} from "prb-math/UD60x18.sol";
-
-// Contratos del protocolo
-import {DebtOrderBook} from "../src/DebtOrderBook.sol";
-import {DebtHook} from "../src/DebtHook.sol";
-import {IDebtHook} from "../src/interfaces/IDebtHook.sol";
-
-// Mocks y utilidades
-import {MockERC20} from "./mocks/MockERC20.sol";
 import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
+
+// Protocol contracts
+import {DebtOrderBook} from "../src/DebtOrderBook.sol";
+import {DebtProtocol} from "../src/DebtProtocol.sol";
+import {IDebtProtocol} from "../src/interfaces/IDebtProtocol.sol";
+import {MockPriceFeed} from "../src/mocks/MockPriceFeed.sol";
+
+// Mocks
+import {MockERC20} from "./mocks/MockERC20.sol";
 
 contract DebtProtocolTest is Test {
     using CurrencyLibrary for Currency;
     
-    // Events from DebtHook contract
-    event LoanCreated(bytes32 indexed loanId, address indexed lender, address indexed borrower);
-    event LoanRepaid(bytes32 indexed loanId);
-    event LoanLiquidated(bytes32 indexed loanId, uint256 collateralSold, uint256 debtRecovered);
+    // Events from DebtProtocol contract
+    event LoanCreated(
+        uint256 indexed loanId,
+        address indexed borrower,
+        address indexed lender,
+        uint256 principal,
+        uint256 collateralAmount,
+        uint64 startTime,
+        uint64 duration,
+        uint64 interestRate
+    );
+    
+    event LoanRepaid(
+        uint256 indexed loanId,
+        address indexed borrower,
+        uint256 principalPaid,
+        uint256 interestPaid,
+        uint256 collateralReturned
+    );
+    
+    event LoanLiquidated(
+        uint256 indexed loanId,
+        address indexed liquidator,
+        uint256 collateralSold,
+        uint256 usdcReceived,
+        uint256 penaltyAmount,
+        uint256 borrowerRefund
+    );
 
-    // --- Componentes del Sistema ---
+    // System components
     PoolManager manager;
-    DebtHook debtHook;
+    DebtProtocol debtProtocol;
     DebtOrderBook orderBook;
     MockERC20 usdc;
+    MockPriceFeed priceFeed;
 
-    // --- Configuración del Pool y Monedas ---
+    // Pool configuration
     Currency currency0; // ETH (address(0))
     Currency currency1; // USDC
     PoolKey key;
     uint160 constant SQRT_PRICE_1_1 = 79228162514264337593543950336; // 1:1 price
 
-    // --- Actores ---
-    address lender = makeAddr("lender");
+    // Test actors
+    address lender;
     uint256 lenderPrivateKey = 0x1337;
     address borrower = makeAddr("borrower");
     address treasury = makeAddr("treasury");
+    address liquidator = makeAddr("liquidator");
 
-    // --- Estado de Prueba ---
-    bytes32 lastLoanId;
+    // Constants
+    uint256 constant PRINCIPAL_AMOUNT = 1000 * 1e6; // 1000 USDC
+    uint256 constant COLLATERAL_AMOUNT = 1 ether;
+    uint64 constant INTEREST_RATE = 500; // 5% APR
+    uint64 constant LOAN_DURATION = 30 days;
 
     function setUp() public {
-        // 1. Desplegar PoolManager
+        // Generate lender address from private key
+        lender = vm.addr(lenderPrivateKey);
+
+        // 1. Deploy PoolManager
         manager = new PoolManager(address(this));
 
-        // 2. Desplegar Mocks y Contratos del Protocolo
+        // 2. Deploy mocks and protocol contracts
         usdc = new MockERC20("USD Coin", "USDC", 6);
         currency0 = Currency.wrap(address(0));
         currency1 = Currency.wrap(address(usdc));
+        
+        // Deploy price feed with $2000 ETH price
+        priceFeed = new MockPriceFeed(2000e8, 8, "ETH/USD");
 
-        debtHook = new DebtHook(
+        // Deploy DebtProtocol first
+        debtProtocol = new DebtProtocol(
             IPoolManager(address(manager)),
-            address(0), // price feed
-            address(0), // debt order book (will be set later)
+            currency0,
+            currency1,
+            3000, // 0.3% fee
+            60, // tick spacing
+            priceFeed,
             treasury,
+            address(1) // Placeholder for orderBook address
+        );
+
+        // Deploy OrderBook with correct DebtProtocol address
+        orderBook = new DebtOrderBook(address(debtProtocol), address(usdc));
+
+        // Deploy new DebtProtocol with correct orderBook address
+        debtProtocol = new DebtProtocol(
+            IPoolManager(address(manager)),
             currency0,
             currency1,
             3000,
-            60
+            60,
+            priceFeed,
+            treasury,
+            address(orderBook)
         );
-        orderBook = new DebtOrderBook(address(debtHook), address(usdc));
-        // En una implementación real, la dirección del order book se pasaría al constructor del hook
-        // y viceversa, para un enlace inmutable. Aquí se simplifica.
+        
+        // Update orderBook to point to the new DebtProtocol
+        orderBook = new DebtOrderBook(address(debtProtocol), address(usdc));
 
-        // 3. Crear e Inicializar el Pool de Uniswap v4
+        // 3. Create and initialize Uniswap v4 pool
         key = PoolKey({
             currency0: currency0,
             currency1: currency1,
             fee: 3000,
             tickSpacing: 60,
-            hooks: IHooks(address(debtHook))
+            hooks: IHooks(address(0)) // No hooks for liquidation pool
         });
         manager.initialize(key, SQRT_PRICE_1_1);
 
-        // 4. Añadir liquidez profunda al pool para que las liquidaciones sean realistas
-        uint128 liquidity = 1e18;
-        int24 tickLower = -887220; // Rango completo
+        // 4. Add deep liquidity to pool
+        _addLiquidityToPool();
+
+        // 5. Fund test actors
+        usdc.mint(lender, 10_000 * 1e6); // 10,000 USDC
+        deal(borrower, 10 ether);
+        deal(liquidator, 10 ether);
+    }
+
+    function _addLiquidityToPool() internal {
+        uint128 liquidity = 100_000e18;
+        int24 tickLower = -887220;
         int24 tickUpper = 887220;
 
         (uint256 amount0, uint256 amount1) = LiquidityAmounts
@@ -100,7 +160,7 @@ contract DebtProtocolTest is Test {
         usdc.approve(address(manager), amount1);
         deal(address(this), amount0);
 
-        manager.modifyLiquidity(
+        manager.modifyLiquidity{value: amount0}(
             key,
             ModifyLiquidityParams({
                 tickLower: tickLower,
@@ -110,126 +170,350 @@ contract DebtProtocolTest is Test {
             }),
             ""
         );
-
-        // 5. Financiar a los actores
-        usdc.mint(lender, 10_000 * 1e6); // 10,000 USDC
-        deal(borrower, 10 ether);
     }
 
-    /// @notice Prueba el ciclo completo: creación, repago y verificación de balances.
-    function test_E2E_CreateAndRepayLoan_HappyPath() public {
-        // --- ARRANGE: El prestamista aprueba, crea y firma una orden ---
-        uint256 principal = 1000 * 1e6; // 1000 USDC
-        uint256 collateral = 1 ether;
-        vm.prank(lender);
-        usdc.approve(address(orderBook), principal);
+    function _createSignedOrder(
+        uint256 principal,
+        uint256 collateral,
+        uint64 duration,
+        uint64 interestRate
+    ) internal view returns (DebtOrderBook.LoanLimitOrder memory, bytes memory) {
+        DebtOrderBook.LoanLimitOrder memory order = DebtOrderBook.LoanLimitOrder({
+            lender: lender,
+            token: address(usdc),
+            principalAmount: principal,
+            collateralRequired: collateral,
+            interestRateBips: uint32(interestRate),
+            maturityTimestamp: uint64(block.timestamp + duration),
+            expiry: uint64(block.timestamp + 1 hours),
+            nonce: 1
+        });
 
-        DebtOrderBook.LoanLimitOrder memory order = DebtOrderBook
-            .LoanLimitOrder({
-                lender: lender,
-                token: address(usdc),
-                principalAmount: principal,
-                collateralRequired: collateral,
-                interestRateBips: 500, // 5% APR
-                maturityTimestamp: uint64(block.timestamp + 30 days),
-                expiry: uint64(block.timestamp + 1 hours),
-                nonce: 1
-            });
-
-        // Hash and sign the order
         bytes32 orderHash = orderBook.hashLoanLimitOrder(order);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(lenderPrivateKey, orderHash);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        // --- ACT 1: El prestatario acepta la orden ---
-        // Se necesita capturar el loanId emitido para el repago.
-        // Para esto, usamos vm.expectEmit.
+        return (order, signature);
+    }
+
+    function test_CreateLoanWithOrder() public {
+        // Arrange
+        vm.prank(lender);
+        usdc.approve(address(orderBook), PRINCIPAL_AMOUNT);
+
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+            _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
+
+        uint256 borrowerUsdcBefore = usdc.balanceOf(borrower);
+        uint256 borrowerEthBefore = borrower.balance;
+
+        // Act
         vm.expectEmit(true, true, true, true);
-        emit LoanCreated(bytes32(0), lender, borrower); // El loanId no es predecible, pero podemos escuchar el evento.
+        emit LoanCreated(
+            1, // First loan ID
+            borrower,
+            lender,
+            PRINCIPAL_AMOUNT,
+            COLLATERAL_AMOUNT,
+            uint64(block.timestamp),
+            LOAN_DURATION,
+            INTEREST_RATE
+        );
 
         vm.prank(borrower);
-        orderBook.fillLimitOrder{value: collateral}(order, signature);
+        orderBook.fillLimitOrder{value: COLLATERAL_AMOUNT}(order, signature);
 
-        // --- ASSERT 1: El préstamo se creó correctamente ---
-        // (En una implementación real, se extraería el `loanId` del log del evento)
-        // Por simplicidad, asumiremos que conocemos el ID o lo leemos del estado.
+        // Assert
+        IDebtProtocol.Loan memory loan = debtProtocol.getLoan(1);
+        assertEq(loan.borrower, borrower);
+        assertEq(loan.lender, lender);
+        assertEq(loan.principal, PRINCIPAL_AMOUNT);
+        assertEq(loan.collateralAmount, COLLATERAL_AMOUNT);
+        assertEq(loan.duration, LOAN_DURATION);
+        assertEq(loan.interestRate, INTEREST_RATE);
+        assertFalse(loan.isRepaid);
+        assertFalse(loan.isLiquidated);
 
-        // --- ARRANGE 2: Preparar para el repago ---
-        vm.warp(block.timestamp + 30 days); // Avanzar en el tiempo
-
-        // NOTA: Para hacer esta prueba determinista, necesitaríamos una función `getLoanId` o
-        // que `createLoan` devuelva el ID. Asumimos que `lastLoanId` se obtiene de alguna manera.
-        // Aquí simularemos que `createLoan` lo devolvió o lo leímos de un evento.
-        // Asumimos que el ID es `keccak256(...)` como en el contrato.
-
-        // --- ACT 2: El prestatario repaga la deuda ---
-        // ... Lógica para obtener el `loanId` y llamar a `repayLoan` ...
-        // Esta parte requiere modificar ligeramente los contratos para testabilidad o usar
-        // técnicas avanzadas de lectura de logs en Foundry.
+        // Check balances
+        assertEq(usdc.balanceOf(borrower), borrowerUsdcBefore + PRINCIPAL_AMOUNT);
+        assertEq(borrower.balance, borrowerEthBefore - COLLATERAL_AMOUNT);
     }
 
-    /// @notice Prueba la liquidación por incumplimiento y la correcta distribución de fondos.
-    function test_E2E_Liquidate_OnDefault_WithSurplus() public {
-        // --- ARRANGE: Crear un préstamo (similar a la prueba anterior) ---
-        // ... (código de creación de préstamo omitido por brevedad) ...
-        // Supongamos que se crea un préstamo con ID `testLoanId`.
-
-        // --- ACT 1: Viajar en el tiempo más allá del período de gracia ---
-        vm.warp(block.timestamp + 31 days);
-
-        // --- ACT 2: El prestamista liquida el préstamo ---
-        uint256 lenderBalanceBefore = usdc.balanceOf(lender);
-        uint256 borrowerBalanceBefore = usdc.balanceOf(borrower);
-        uint256 treasuryBalanceBefore = usdc.balanceOf(treasury);
-
+    function test_RepayLoan() public {
+        // Create loan first
         vm.prank(lender);
-        debtHook.liquidate(lastLoanId); // `lastLoanId` debe ser obtenido tras la creación.
+        usdc.approve(address(orderBook), PRINCIPAL_AMOUNT);
 
-        // --- ASSERT: Verificar la distribución de fondos ---
-        uint256 lenderBalanceAfter = usdc.balanceOf(lender);
-        uint256 borrowerBalanceAfter = usdc.balanceOf(borrower);
-        uint256 treasuryBalanceAfter = usdc.balanceOf(treasury);
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+            _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
 
-        uint256 debtAtMaturity = 1050 * 1e6; // 1000 + 5% interés (aprox.)
+        vm.prank(borrower);
+        orderBook.fillLimitOrder{value: COLLATERAL_AMOUNT}(order, signature);
 
-        // El prestamista recibe su deuda de vuelta
-        assertTrue(lenderBalanceAfter > lenderBalanceBefore);
-        assertApproxEqAbs(
-            lenderBalanceAfter - lenderBalanceBefore,
-            debtAtMaturity,
-            1 * 1e6
-        ); // Tolerancia por slippage
+        // Fast forward 15 days
+        vm.warp(block.timestamp + 15 days);
 
-        // El swap de 1 ETH a 1000 USDC debería generar un superávit (asumiendo precio estable)
-        // El tesoro y el prestatario deberían recibir fondos.
-        assertTrue(
-            treasuryBalanceAfter > treasuryBalanceBefore,
-            "Treasury should receive penalty fee"
+        // Calculate repayment amount
+        IDebtProtocol.Loan memory loan = debtProtocol.getLoan(1);
+        uint256 repaymentAmount = debtProtocol.calculateRepaymentAmount(loan);
+
+        // Mint extra USDC for interest payment
+        usdc.mint(borrower, repaymentAmount - PRINCIPAL_AMOUNT);
+
+        // Approve and repay
+        vm.prank(borrower);
+        usdc.approve(address(debtProtocol), repaymentAmount);
+
+        uint256 lenderUsdcBefore = usdc.balanceOf(lender);
+        uint256 borrowerEthBefore = borrower.balance;
+
+        vm.expectEmit(true, true, false, true);
+        emit LoanRepaid(
+            1,
+            borrower,
+            PRINCIPAL_AMOUNT,
+            repaymentAmount - PRINCIPAL_AMOUNT,
+            COLLATERAL_AMOUNT
         );
-        assertTrue(
-            borrowerBalanceAfter > borrowerBalanceBefore,
-            "Borrower should receive surplus"
-        );
+
+        vm.prank(borrower);
+        debtProtocol.repayLoan(1);
+
+        // Assert loan is repaid
+        loan = debtProtocol.getLoan(1);
+        assertTrue(loan.isRepaid);
+
+        // Check balances
+        assertEq(usdc.balanceOf(lender), lenderUsdcBefore + repaymentAmount);
+        assertEq(borrower.balance, borrowerEthBefore + COLLATERAL_AMOUNT);
     }
 
-    /// @notice Prueba que una orden no puede ser llenada con una firma incorrecta.
-    function test_Revert_When_FillingOrderWithInvalidSignature() public {
-        // Create order
+    function test_LiquidateLoan_AfterGracePeriod() public {
+        // Create loan
+        vm.prank(lender);
+        usdc.approve(address(orderBook), PRINCIPAL_AMOUNT);
+
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+            _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
+
+        vm.prank(borrower);
+        orderBook.fillLimitOrder{value: COLLATERAL_AMOUNT}(order, signature);
+
+        // Fast forward past maturity + grace period
+        vm.warp(block.timestamp + LOAN_DURATION + 25 hours);
+
+        // Check loan is liquidatable
+        IDebtProtocol.Loan memory loan = debtProtocol.getLoan(1);
+        assertTrue(debtProtocol.isLiquidatable(loan));
+
+        uint256 lenderUsdcBefore = usdc.balanceOf(lender);
+        uint256 treasuryUsdcBefore = usdc.balanceOf(treasury);
+
+        // Liquidate
+        vm.prank(liquidator);
+        debtProtocol.liquidateLoan(1);
+
+        // Assert loan is liquidated
+        loan = debtProtocol.getLoan(1);
+        assertTrue(loan.isLiquidated);
+
+        // Check funds distributed
+        assertGt(usdc.balanceOf(lender), lenderUsdcBefore);
+        assertGt(usdc.balanceOf(treasury), treasuryUsdcBefore);
+    }
+
+    function test_LiquidateLoan_UnderCollateralized() public {
+        // Create loan
+        vm.prank(lender);
+        usdc.approve(address(orderBook), PRINCIPAL_AMOUNT);
+
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+            _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
+
+        vm.prank(borrower);
+        orderBook.fillLimitOrder{value: COLLATERAL_AMOUNT}(order, signature);
+
+        // Drop ETH price to make loan under-collateralized
+        priceFeed.setPrice(1000e8); // $1000 ETH
+
+        // Check loan is liquidatable
+        IDebtProtocol.Loan memory loan = debtProtocol.getLoan(1);
+        assertTrue(debtProtocol.isLiquidatable(loan));
+
+        // Liquidate
+        vm.prank(liquidator);
+        debtProtocol.liquidateLoan(1);
+
+        // Assert loan is liquidated
+        loan = debtProtocol.getLoan(1);
+        assertTrue(loan.isLiquidated);
+    }
+
+    function test_RevertWhen_RepayingNonExistentLoan() public {
+        vm.expectRevert(DebtProtocol.LoanNotFound.selector);
+        debtProtocol.repayLoan(999);
+    }
+
+    function test_RevertWhen_RepayingAlreadyRepaidLoan() public {
+        // Create and repay loan
+        vm.prank(lender);
+        usdc.approve(address(orderBook), PRINCIPAL_AMOUNT);
+
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+            _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
+
+        vm.prank(borrower);
+        orderBook.fillLimitOrder{value: COLLATERAL_AMOUNT}(order, signature);
+
+        IDebtProtocol.Loan memory loan = debtProtocol.getLoan(1);
+        uint256 repaymentAmount = debtProtocol.calculateRepaymentAmount(loan);
+        
+        usdc.mint(borrower, repaymentAmount);
+        vm.prank(borrower);
+        usdc.approve(address(debtProtocol), repaymentAmount);
+        
+        vm.prank(borrower);
+        debtProtocol.repayLoan(1);
+
+        // Try to repay again
+        vm.prank(borrower);
+        vm.expectRevert(DebtProtocol.LoanAlreadyRepaid.selector);
+        debtProtocol.repayLoan(1);
+    }
+
+    function test_RevertWhen_LiquidatingHealthyLoan() public {
+        // Create loan
+        vm.prank(lender);
+        usdc.approve(address(orderBook), PRINCIPAL_AMOUNT);
+
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+            _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
+
+        vm.prank(borrower);
+        orderBook.fillLimitOrder{value: COLLATERAL_AMOUNT}(order, signature);
+
+        // Try to liquidate healthy loan
+        vm.prank(liquidator);
+        vm.expectRevert(DebtProtocol.LoanNotLiquidatable.selector);
+        debtProtocol.liquidateLoan(1);
+    }
+
+    function test_RevertWhen_FillingOrderWithInvalidSignature() public {
         DebtOrderBook.LoanLimitOrder memory order = DebtOrderBook.LoanLimitOrder({
             lender: lender,
             token: address(usdc),
-            principalAmount: 1000 * 1e6, // 1000 USDC
-            collateralRequired: 1 ether,
-            interestRateBips: 500, // 5%
-            maturityTimestamp: uint64(block.timestamp + 30 days),
+            principalAmount: PRINCIPAL_AMOUNT,
+            collateralRequired: COLLATERAL_AMOUNT,
+            interestRateBips: uint32(INTEREST_RATE),
+            maturityTimestamp: uint64(block.timestamp + LOAN_DURATION),
             expiry: uint64(block.timestamp + 1 days),
             nonce: 1
         });
         
-        bytes memory badSignature = new bytes(65); // Firma vacía o incorrecta
+        bytes memory badSignature = new bytes(65);
 
         vm.prank(borrower);
         vm.expectRevert("DebtOrderBook: Invalid signature");
-        orderBook.fillLimitOrder{value: 1 ether}(order, badSignature);
+        orderBook.fillLimitOrder{value: COLLATERAL_AMOUNT}(order, badSignature);
+    }
+
+    function test_RevertWhen_FillingExpiredOrder() public {
+        vm.prank(lender);
+        usdc.approve(address(orderBook), PRINCIPAL_AMOUNT);
+
+        DebtOrderBook.LoanLimitOrder memory order = DebtOrderBook.LoanLimitOrder({
+            lender: lender,
+            token: address(usdc),
+            principalAmount: PRINCIPAL_AMOUNT,
+            collateralRequired: COLLATERAL_AMOUNT,
+            interestRateBips: uint32(INTEREST_RATE),
+            maturityTimestamp: uint64(block.timestamp + LOAN_DURATION),
+            expiry: uint64(block.timestamp + 1 hours),
+            nonce: 1
+        });
+
+        bytes32 orderHash = orderBook.hashLoanLimitOrder(order);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(lenderPrivateKey, orderHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // Fast forward past expiry
+        vm.warp(block.timestamp + 2 hours);
+
+        vm.prank(borrower);
+        vm.expectRevert("DebtOrderBook: Order expired");
+        orderBook.fillLimitOrder{value: COLLATERAL_AMOUNT}(order, signature);
+    }
+
+    function test_RevertWhen_ReusingNonce() public {
+        vm.prank(lender);
+        usdc.approve(address(orderBook), PRINCIPAL_AMOUNT * 2);
+
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+            _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
+
+        // First fill should succeed
+        vm.prank(borrower);
+        orderBook.fillLimitOrder{value: COLLATERAL_AMOUNT}(order, signature);
+
+        // Second fill with same nonce should fail
+        vm.prank(borrower);
+        vm.expectRevert("DebtOrderBook: Nonce already used");
+        orderBook.fillLimitOrder{value: COLLATERAL_AMOUNT}(order, signature);
+    }
+
+    function test_InterestCalculation() public {
+        // Create loan
+        vm.prank(lender);
+        usdc.approve(address(orderBook), PRINCIPAL_AMOUNT);
+
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+            _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
+
+        vm.prank(borrower);
+        orderBook.fillLimitOrder{value: COLLATERAL_AMOUNT}(order, signature);
+
+        IDebtProtocol.Loan memory loan = debtProtocol.getLoan(1);
+
+        // Test interest calculation at different times
+        uint256 amount0Days = debtProtocol.calculateRepaymentAmount(loan);
+        assertEq(amount0Days, PRINCIPAL_AMOUNT);
+
+        vm.warp(block.timestamp + 365 days);
+        uint256 amount365Days = debtProtocol.calculateRepaymentAmount(loan);
+        
+        // With 5% APR continuous compounding: P * e^(0.05)
+        // Expected: 1000 * e^0.05 ≈ 1051.27 USDC
+        assertApproxEqRel(amount365Days, 1051.27 * 1e6, 0.01e18); // 1% tolerance
+    }
+
+    function test_MultipleLoanTracking() public {
+        vm.prank(lender);
+        usdc.approve(address(orderBook), PRINCIPAL_AMOUNT * 3);
+
+        // Create 3 loans
+        for (uint256 i = 1; i <= 3; i++) {
+            (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+                _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
+            
+            order.nonce = i;
+            bytes32 orderHash = orderBook.hashLoanLimitOrder(order);
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(lenderPrivateKey, orderHash);
+            signature = abi.encodePacked(r, s, v);
+
+            vm.prank(borrower);
+            orderBook.fillLimitOrder{value: COLLATERAL_AMOUNT}(order, signature);
+        }
+
+        // Check loan tracking
+        uint256[] memory borrowerLoans = debtProtocol.getBorrowerLoans(borrower);
+        uint256[] memory lenderLoans = debtProtocol.getLenderLoans(lender);
+
+        assertEq(borrowerLoans.length, 3);
+        assertEq(lenderLoans.length, 3);
+
+        for (uint256 i = 0; i < 3; i++) {
+            assertEq(borrowerLoans[i], i + 1);
+            assertEq(lenderLoans[i], i + 1);
+        }
     }
 }
