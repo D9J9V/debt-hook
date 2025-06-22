@@ -74,3 +74,7 @@ The frontend needs Web3 integration (Wagmi + Viem) and will use Supabase for off
 4. **Liquidation Logic**: Liquidations happen through Uniswap v4 swaps. The hook's `beforeSwap` and `afterSwap` functions manage the liquidation process
 
 5. **Frontend Integration**: Refer to `system-prompt.md` for detailed integration steps between frontend and smart contracts
+
+## Git Submodule Management
+- Use `git submodule update --remote` to update to the latest version
+- Commit changes to the submodule in the main repository when updating

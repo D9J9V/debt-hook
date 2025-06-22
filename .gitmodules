@@ -1,6 +1,3 @@
-[submodule "dapp"]
-	path = dapp
-	url = git@github.com:D9J9V/debt-hook-dapp.git
 [submodule "blockchain/lib/forge-std"]
 	path = blockchain/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
@@ -13,3 +10,6 @@
 [submodule "blockchain/lib/prb-math"]
 	path = blockchain/lib/prb-math
 	url = https://github.com/PaulRBerg/prb-math
+[submodule "dapp"]
+	path = dapp
+	url = git@github.com:D9J9V/debt-hook-dapp.git
