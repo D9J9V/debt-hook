@@ -1,3 +1,6 @@
 [submodule "debt-hook-dapp"]
 	path = debt-hook-dapp
 	url = git@github.com:D9J9V/debt-hook-dapp.git
+[submodule "debt-hook-blockchain/lib/forge-std"]
+	path = debt-hook-blockchain/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
