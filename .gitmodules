@@ -16,3 +16,6 @@
 [submodule "v4-docs"]
 	path = v4-docs
 	url = https://github.com/D9J9V/v4-docs.git
+[submodule "viem-docs"]
+	path = viem-docs
+	url = https://github.com/wevm/viem.git
