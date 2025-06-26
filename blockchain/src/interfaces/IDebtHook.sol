@@ -12,7 +12,5 @@ interface IDebtHook {
     }
 
     // CAMBIO PRINCIPAL: La función ahora especifica que devolverá el ID del préstamo.
-    function createLoan(
-        CreateLoanParams calldata params
-    ) external payable returns (bytes32 loanId);
+    function createLoan(CreateLoanParams calldata params) external payable returns (bytes32 loanId);
 }

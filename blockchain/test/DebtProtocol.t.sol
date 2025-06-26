@@ -30,21 +30,13 @@ import {ECDSA} from "solady/utils/ECDSA.sol";
 contract DebtHookTest is Test {
     using CurrencyLibrary for Currency;
     using CurrencySettler for Currency;
-    
+
     // Events from DebtHook contract
-    event LoanCreated(
-        bytes32 indexed loanId,
-        address indexed lender,
-        address indexed borrower
-    );
-    
+    event LoanCreated(bytes32 indexed loanId, address indexed lender, address indexed borrower);
+
     event LoanRepaid(bytes32 indexed loanId);
-    
-    event LoanLiquidated(
-        bytes32 indexed loanId,
-        uint256 proceeds,
-        uint256 surplus
-    );
+
+    event LoanLiquidated(bytes32 indexed loanId, uint256 proceeds, uint256 surplus);
 
     // System components
     PoolManager manager;
@@ -84,20 +76,20 @@ contract DebtHookTest is Test {
         usdc = new MockERC20("USD Coin", "USDC", 6);
         currency0 = Currency.wrap(address(0));
         currency1 = Currency.wrap(address(usdc));
-        
+
         // Deploy price feed with $2000 ETH price
         priceFeed = new MockPriceFeed(2000e8, 8, "ETH/USD");
 
         // Deploy the hook to an address with the correct flags
         // For beforeSwap and afterSwap, we need bits 6 and 7 set
         address hookFlags = address(
-            uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG) ^
-                (0x4444 << 144) // Namespace the hook to avoid collisions
+            uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG)
+                ^ (0x4444 << 144) // Namespace the hook to avoid collisions
         );
-        
+
         // First, deploy a temporary DebtOrderBook to get its future address
         DebtOrderBook tempOrderBook = new DebtOrderBook(address(0), address(usdc));
-        
+
         // Deploy DebtHook to the correct address using deployCodeTo
         bytes memory constructorArgs = abi.encode(
             IPoolManager(address(manager)),
@@ -114,7 +106,7 @@ contract DebtHookTest is Test {
 
         // Now deploy the real OrderBook that points to our DebtHook
         orderBook = new DebtOrderBook(address(debtHook), address(usdc));
-        
+
         // Update the DebtHook with the correct orderBook address
         // We need to redeploy since the orderBook is immutable
         constructorArgs = abi.encode(
@@ -132,7 +124,7 @@ contract DebtHookTest is Test {
 
         // 3. Deploy test router
         modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
-        
+
         // 4. Create and initialize Uniswap v4 pool
         key = PoolKey({
             currency0: currency0,
@@ -158,13 +150,9 @@ contract DebtHookTest is Test {
         int24 tickLower = -887220;
         int24 tickUpper = 887220;
 
-        (uint256 amount0, uint256 amount1) = LiquidityAmounts
-            .getAmountsForLiquidity(
-                SQRT_PRICE_1_1,
-                TickMath.getSqrtPriceAtTick(tickLower),
-                TickMath.getSqrtPriceAtTick(tickUpper),
-                liquidity
-            );
+        (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(
+            SQRT_PRICE_1_1, TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), liquidity
+        );
 
         usdc.mint(address(this), amount1);
         usdc.approve(address(modifyLiquidityRouter), amount1);
@@ -184,12 +172,11 @@ contract DebtHookTest is Test {
         );
     }
 
-    function _createSignedOrder(
-        uint256 principal,
-        uint256 collateral,
-        uint64 duration,
-        uint64 interestRate
-    ) internal view returns (DebtOrderBook.LoanLimitOrder memory, bytes memory) {
+    function _createSignedOrder(uint256 principal, uint256 collateral, uint64 duration, uint64 interestRate)
+        internal
+        view
+        returns (DebtOrderBook.LoanLimitOrder memory, bytes memory)
+    {
         DebtOrderBook.LoanLimitOrder memory order = DebtOrderBook.LoanLimitOrder({
             lender: lender,
             token: address(usdc),
@@ -213,7 +200,7 @@ contract DebtHookTest is Test {
         vm.prank(lender);
         usdc.approve(address(orderBook), PRINCIPAL_AMOUNT);
 
-        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) =
             _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
 
         uint256 borrowerUsdcBefore = usdc.balanceOf(borrower);
@@ -250,7 +237,7 @@ contract DebtHookTest is Test {
         vm.prank(lender);
         usdc.approve(address(orderBook), PRINCIPAL_AMOUNT);
 
-        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) =
             _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
 
         vm.prank(borrower);
@@ -296,7 +283,7 @@ contract DebtHookTest is Test {
         vm.prank(lender);
         usdc.approve(address(orderBook), PRINCIPAL_AMOUNT);
 
-        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) =
             _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
 
         vm.prank(borrower);
@@ -332,7 +319,7 @@ contract DebtHookTest is Test {
         vm.prank(lender);
         usdc.approve(address(orderBook), PRINCIPAL_AMOUNT);
 
-        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) =
             _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
 
         vm.prank(borrower);
@@ -367,7 +354,7 @@ contract DebtHookTest is Test {
         vm.prank(lender);
         usdc.approve(address(orderBook), PRINCIPAL_AMOUNT);
 
-        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) =
             _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
 
         vm.prank(borrower);
@@ -375,11 +362,11 @@ contract DebtHookTest is Test {
 
         DebtHook.Loan memory loan = debtHook.getLoan(1);
         uint256 repaymentAmount = debtHook.calculateRepaymentAmount(loan);
-        
+
         usdc.mint(borrower, repaymentAmount);
         vm.prank(borrower);
         usdc.approve(address(debtHook), repaymentAmount);
-        
+
         vm.prank(borrower);
         debtHook.repayLoan(1);
 
@@ -394,7 +381,7 @@ contract DebtHookTest is Test {
         vm.prank(lender);
         usdc.approve(address(orderBook), PRINCIPAL_AMOUNT);
 
-        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) =
             _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
 
         vm.prank(borrower);
@@ -402,10 +389,10 @@ contract DebtHookTest is Test {
 
         // Get the loan to find its ID
         DebtHook.Loan memory loan = debtHook.getLoan(1);
-        
+
         // Verify loan is healthy (not liquidatable)
         assertFalse(debtHook.isLiquidatable(loan));
-        
+
         // Since liquidations happen through swaps in V4 hooks, we can't directly test the revert
         // Instead, we'll verify that the loan is not liquidatable
         // In production, the beforeSwap hook would not trigger liquidation for this loan
@@ -422,7 +409,7 @@ contract DebtHookTest is Test {
             expiry: uint64(block.timestamp + 1 days),
             nonce: 1
         });
-        
+
         bytes memory badSignature = new bytes(65);
 
         vm.prank(borrower);
@@ -461,7 +448,7 @@ contract DebtHookTest is Test {
         vm.prank(lender);
         usdc.approve(address(orderBook), PRINCIPAL_AMOUNT * 2);
 
-        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) =
             _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
 
         // First fill should succeed
@@ -479,7 +466,7 @@ contract DebtHookTest is Test {
         vm.prank(lender);
         usdc.approve(address(orderBook), PRINCIPAL_AMOUNT);
 
-        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+        (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) =
             _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, 365 days, INTEREST_RATE);
 
         vm.prank(borrower);
@@ -497,11 +484,11 @@ contract DebtHookTest is Test {
         // With 5% APR continuous compounding for 30/365 days: P * e^(0.05 * 30/365)
         // Expected: 1000 * e^0.00411 ≈ 1004.12 USDC
         assertApproxEqRel(amount30Days, 1004.12 * 1e6, 0.01e18); // 1% tolerance
-        
+
         // Test after full year (but capped at loan duration)
         vm.warp(block.timestamp + 365 days);
         uint256 amount365Days = debtHook.calculateRepaymentAmount(loan);
-        
+
         // With 5% APR continuous compounding: P * e^(0.05)
         // Expected: 1000 * e^0.05 ≈ 1051.27 USDC
         assertApproxEqRel(amount365Days, 1051.27 * 1e6, 0.01e18); // 1% tolerance
@@ -513,9 +500,9 @@ contract DebtHookTest is Test {
 
         // Create 3 loans
         for (uint256 i = 1; i <= 3; i++) {
-            (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) = 
+            (DebtOrderBook.LoanLimitOrder memory order, bytes memory signature) =
                 _createSignedOrder(PRINCIPAL_AMOUNT, COLLATERAL_AMOUNT, LOAN_DURATION, INTEREST_RATE);
-            
+
             order.nonce = i;
             bytes32 orderHash = orderBook.hashLoanLimitOrder(order);
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(lenderPrivateKey, orderHash);

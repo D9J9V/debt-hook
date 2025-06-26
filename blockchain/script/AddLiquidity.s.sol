@@ -17,29 +17,29 @@ import {ERC20} from "solady/tokens/ERC20.sol";
 /// @notice Adds liquidity to the DebtProtocol pool
 contract AddLiquidity is Script {
     uint160 constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
-    
+
     IPoolManager manager;
     PoolKey key;
     ModifyLiquidityParams params;
-    
+
     function run() external {
         // Read deployment addresses from file
         string memory deploymentData = vm.readFile("deployments/latest.json");
         address poolManager = vm.parseJsonAddress(deploymentData, ".poolManager");
         address usdc = vm.parseJsonAddress(deploymentData, ".usdc");
-        
+
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
-        
+
         console.log("Adding liquidity from:", deployer);
         console.log("PoolManager:", poolManager);
         console.log("USDC:", usdc);
-        
+
         vm.startBroadcast(deployerPrivateKey);
-        
+
         manager = IPoolManager(poolManager);
         ERC20 usdcToken = ERC20(usdc);
-        
+
         // Define pool key
         key = PoolKey({
             currency0: Currency.wrap(address(0)), // ETH
@@ -48,27 +48,23 @@ contract AddLiquidity is Script {
             tickSpacing: 60,
             hooks: IHooks(address(0))
         });
-        
+
         // Define liquidity parameters
         uint128 liquidity = 10_000e18;
         int24 tickLower = -887220; // Full range
         int24 tickUpper = 887220;
-        
+
         // Calculate required amounts
-        (uint256 amount0, uint256 amount1) = LiquidityAmounts
-            .getAmountsForLiquidity(
-                SQRT_PRICE_1_1,
-                TickMath.getSqrtPriceAtTick(tickLower),
-                TickMath.getSqrtPriceAtTick(tickUpper),
-                liquidity
-            );
-        
+        (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(
+            SQRT_PRICE_1_1, TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), liquidity
+        );
+
         console.log("Required ETH:", amount0);
         console.log("Required USDC:", amount1);
-        
+
         // Approve USDC
         usdcToken.approve(poolManager, amount1);
-        
+
         // Store params for callback
         params = ModifyLiquidityParams({
             tickLower: tickLower,
@@ -76,18 +72,18 @@ contract AddLiquidity is Script {
             liquidityDelta: int256(int128(liquidity)),
             salt: bytes32(0)
         });
-        
+
         // For now, we'll assume the pool manager accepts ETH directly
         // In production, this would need to go through the proper unlock mechanism
         // manager.unlock(abi.encode(amount0));
-        
+
         console.log("Liquidity added successfully!");
-        
+
         vm.stopBroadcast();
     }
-    
+
     // TODO: Implement proper liquidity addition through unlock callback
     // This script is a placeholder for the actual implementation
-    
+
     receive() external payable {}
 }

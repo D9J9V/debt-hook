@@ -28,15 +28,12 @@ contract TestRouter is IUnlockCallback {
         manager = _manager;
     }
 
-    function modifyLiquidity(
-        PoolKey memory key,
-        ModifyLiquidityParams memory params,
-        bytes memory hookData
-    ) external payable returns (BalanceDelta delta) {
-        delta = abi.decode(
-            manager.unlock(abi.encode(CallbackData(key, params, msg.sender, true))),
-            (BalanceDelta)
-        );
+    function modifyLiquidity(PoolKey memory key, ModifyLiquidityParams memory params, bytes memory hookData)
+        external
+        payable
+        returns (BalanceDelta delta)
+    {
+        delta = abi.decode(manager.unlock(abi.encode(CallbackData(key, params, msg.sender, true))), (BalanceDelta));
     }
 
     function unlockCallback(bytes calldata data) external override returns (bytes memory) {
@@ -49,7 +46,7 @@ contract TestRouter is IUnlockCallback {
         if (callbackData.settle) {
             int128 amount0 = delta.amount0();
             int128 amount1 = delta.amount1();
-            
+
             if (amount0 < 0) {
                 // For ETH (currency0 = address(0)), we send value via settle()
                 if (Currency.unwrap(callbackData.key.currency0) == address(0)) {
@@ -71,6 +68,6 @@ contract TestRouter is IUnlockCallback {
 
         return abi.encode(delta);
     }
-    
+
     receive() external payable {}
 }

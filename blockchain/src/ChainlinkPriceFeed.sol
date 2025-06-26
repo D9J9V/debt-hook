@@ -11,13 +11,13 @@ import {IPriceFeed} from "./interfaces/IPriceFeed.sol";
  */
 contract ChainlinkPriceFeed is IPriceFeed {
     AggregatorV3Interface public immutable aggregator;
-    
+
     // Stale price check parameters
     uint256 public constant PRICE_STALENESS_THRESHOLD = 3600; // 1 hour
-    
+
     error StalePrice();
     error InvalidPrice();
-    
+
     /**
      * @notice Constructor
      * @param _aggregator The Chainlink aggregator contract address
@@ -26,7 +26,7 @@ contract ChainlinkPriceFeed is IPriceFeed {
         require(_aggregator != address(0), "Invalid aggregator address");
         aggregator = AggregatorV3Interface(_aggregator);
     }
-    
+
     /**
      * @notice Returns the latest round data from Chainlink
      * @return roundId The round ID
@@ -35,22 +35,20 @@ contract ChainlinkPriceFeed is IPriceFeed {
      * @return updatedAt Timestamp of when the round was updated
      * @return answeredInRound The round ID of the round in which the answer was computed
      */
-    function latestRoundData() external view returns (
-        uint80 roundId,
-        int256 price,
-        uint256 startedAt,
-        uint256 updatedAt,
-        uint80 answeredInRound
-    ) {
+    function latestRoundData()
+        external
+        view
+        returns (uint80 roundId, int256 price, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
+    {
         (roundId, price, startedAt, updatedAt, answeredInRound) = aggregator.latestRoundData();
-        
+
         // Validate the price data
         if (price <= 0) revert InvalidPrice();
         if (block.timestamp - updatedAt > PRICE_STALENESS_THRESHOLD) revert StalePrice();
-        
+
         return (roundId, price, startedAt, updatedAt, answeredInRound);
     }
-    
+
     /**
      * @notice Returns the number of decimals in the price
      * @return decimals The number of decimals (typically 8 for USD feeds)
@@ -58,7 +56,7 @@ contract ChainlinkPriceFeed is IPriceFeed {
     function decimals() external view returns (uint8) {
         return aggregator.decimals();
     }
-    
+
     /**
      * @notice Get the description of the price feed
      * @return description The description string (e.g., "ETH / USD")

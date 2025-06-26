@@ -12,10 +12,9 @@ contract DebtOrderBook is EIP712 {
 
     mapping(uint256 => bool) public usedNonces;
 
-    bytes32 private constant _LOAN_LIMIT_ORDER_TYPEHASH =
-        keccak256(
-            "LoanLimitOrder(address lender,address token,uint256 principalAmount,uint256 collateralRequired,uint32 interestRateBips,uint64 maturityTimestamp,uint64 expiry,uint256 nonce)"
-        );
+    bytes32 private constant _LOAN_LIMIT_ORDER_TYPEHASH = keccak256(
+        "LoanLimitOrder(address lender,address token,uint256 principalAmount,uint256 collateralRequired,uint32 interestRateBips,uint64 maturityTimestamp,uint64 expiry,uint256 nonce)"
+    );
 
     struct LoanLimitOrder {
         address lender;
@@ -28,58 +27,34 @@ contract DebtOrderBook is EIP712 {
         uint256 nonce;
     }
 
-    event OrderFilled(
-        bytes32 indexed orderHash,
-        address indexed borrower,
-        uint256 principalAmount
-    );
+    event OrderFilled(bytes32 indexed orderHash, address indexed borrower, uint256 principalAmount);
     event OrderCancelled(uint256 indexed nonce, address indexed lender);
 
-    constructor(
-        address _debtHookAddress,
-        address _usdcAddress
-    ) {
+    constructor(address _debtHookAddress, address _usdcAddress) {
         debtHook = IDebtHook(_debtHookAddress);
         usdc = ERC20(_usdcAddress);
     }
-    
-    function _domainNameAndVersion() 
-        internal 
-        pure 
-        override 
-        returns (string memory name, string memory version) 
-    {
+
+    function _domainNameAndVersion() internal pure override returns (string memory name, string memory version) {
         name = "DebtOrderBook";
         version = "1";
     }
 
-    function fillLimitOrder(
-        LoanLimitOrder calldata order,
-        bytes calldata signature
-    ) external payable {
+    function fillLimitOrder(LoanLimitOrder calldata order, bytes calldata signature) external payable {
         require(block.timestamp < order.expiry, "DebtOrderBook: Order expired");
-        require(
-            msg.value >= order.collateralRequired,
-            "DebtOrderBook: Insufficient collateral"
-        );
+        require(msg.value >= order.collateralRequired, "DebtOrderBook: Insufficient collateral");
 
         bytes32 orderHash = _hashLoanLimitOrder(order);
-        address recoveredLender = ECDSA.recover(
-            orderHash,
-            signature
-        );
+        address recoveredLender = ECDSA.recover(orderHash, signature);
 
-        require(
-            recoveredLender == order.lender && recoveredLender != address(0),
-            "DebtOrderBook: Invalid signature"
-        );
+        require(recoveredLender == order.lender && recoveredLender != address(0), "DebtOrderBook: Invalid signature");
 
         require(!usedNonces[order.nonce], "DebtOrderBook: Nonce already used");
         usedNonces[order.nonce] = true;
 
         usdc.transferFrom(order.lender, address(this), order.principalAmount);
         usdc.approve(address(debtHook), order.principalAmount);
-            
+
         debtHook.createLoan{value: msg.value}(
             IDebtHook.CreateLoanParams({
                 lender: order.lender,
@@ -96,30 +71,25 @@ contract DebtOrderBook is EIP712 {
 
     // ... (Otras funciones como cancelOrder) ...
 
-    function hashLoanLimitOrder(
-        LoanLimitOrder calldata order
-    ) public view returns (bytes32) {
+    function hashLoanLimitOrder(LoanLimitOrder calldata order) public view returns (bytes32) {
         return _hashLoanLimitOrder(order);
     }
-    
-    function _hashLoanLimitOrder(
-        LoanLimitOrder calldata order
-    ) internal view returns (bytes32) {
-        return
-            _hashTypedData(
-                keccak256(
-                    abi.encode(
-                        _LOAN_LIMIT_ORDER_TYPEHASH,
-                        order.lender,
-                        order.token,
-                        order.principalAmount,
-                        order.collateralRequired,
-                        order.interestRateBips,
-                        order.maturityTimestamp,
-                        order.expiry,
-                        order.nonce
-                    )
+
+    function _hashLoanLimitOrder(LoanLimitOrder calldata order) internal view returns (bytes32) {
+        return _hashTypedData(
+            keccak256(
+                abi.encode(
+                    _LOAN_LIMIT_ORDER_TYPEHASH,
+                    order.lender,
+                    order.token,
+                    order.principalAmount,
+                    order.collateralRequired,
+                    order.interestRateBips,
+                    order.maturityTimestamp,
+                    order.expiry,
+                    order.nonce
                 )
-            );
+            )
+        );
     }
 }

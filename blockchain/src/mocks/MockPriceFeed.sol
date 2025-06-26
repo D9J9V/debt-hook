@@ -29,21 +29,9 @@ contract MockPriceFeed is IPriceFeed {
     function latestRoundData()
         external
         view
-        returns (
-            uint80 roundId,
-            int256 price,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        )
+        returns (uint80 roundId, int256 price, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
-        return (
-            _roundId,
-            _price,
-            _lastUpdate,
-            _lastUpdate,
-            _roundId
-        );
+        return (_roundId, _price, _lastUpdate, _lastUpdate, _roundId);
     }
 
     function decimals() external view returns (uint8) {
@@ -53,22 +41,10 @@ contract MockPriceFeed is IPriceFeed {
     function getRoundData(uint80 requestedRoundId)
         external
         view
-        returns (
-            uint80 roundId,
-            int256 price,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        )
+        returns (uint80 roundId, int256 price, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
         require(requestedRoundId <= _roundId, "Round not complete");
         // For simplicity, return the latest data
-        return (
-            requestedRoundId,
-            _price,
-            _lastUpdate,
-            _lastUpdate,
-            requestedRoundId
-        );
+        return (requestedRoundId, _price, _lastUpdate, _lastUpdate, requestedRoundId);
     }
 }

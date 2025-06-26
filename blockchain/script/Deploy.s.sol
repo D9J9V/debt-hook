@@ -21,15 +21,15 @@ contract Deploy is Script {
     address constant WETH = address(0); // Native ETH
     address constant POOL_MANAGER = address(0); // Deploy new or use existing
     address constant CHAINLINK_ETH_USD = 0xd9c93081210dFc33326B2af4C2c11848095E6a9a; // ETH/USD on Unichain Sepolia
-    
+
     // Pool configuration
     uint24 constant POOL_FEE = 3000; // 0.3%
     int24 constant TICK_SPACING = 60;
     uint160 constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
-    
+
     // Protocol configuration
     address treasury;
-    
+
     function run() external {
         uint256 deployerPrivateKey = vm.envOr("PRIVATE_KEY", uint256(0));
         address deployer;
@@ -40,16 +40,16 @@ contract Deploy is Script {
             deployer = vm.addr(deployerPrivateKey);
         }
         treasury = vm.envOr("TREASURY", deployer);
-        
+
         console.log("Deploying from:", deployer);
         console.log("Treasury:", treasury);
-        
+
         if (deployerPrivateKey == 0) {
             vm.startBroadcast();
         } else {
             vm.startBroadcast(deployerPrivateKey);
         }
-        
+
         // 1. Deploy PoolManager if needed
         IPoolManager poolManager;
         if (POOL_MANAGER == address(0)) {
@@ -59,15 +59,15 @@ contract Deploy is Script {
             poolManager = IPoolManager(POOL_MANAGER);
             console.log("Using existing PoolManager:", address(poolManager));
         }
-        
+
         // 2. Deploy USDC mock (for testnet)
         MockERC20 usdc = new MockERC20("USD Coin", "USDC", 6);
         console.log("USDC deployed:", address(usdc));
-        
+
         // 3. Use Chainlink price feed
         IPriceFeed priceFeed = IPriceFeed(CHAINLINK_ETH_USD);
         console.log("Using Chainlink ETH/USD price feed:", address(priceFeed));
-        
+
         // 4. Deploy DebtHook with placeholder orderBook
         DebtHook debtHook = new DebtHook(
             poolManager,
@@ -80,14 +80,11 @@ contract Deploy is Script {
             TICK_SPACING
         );
         console.log("DebtHook deployed:", address(debtHook));
-        
+
         // 5. Deploy DebtOrderBook
-        DebtOrderBook orderBook = new DebtOrderBook(
-            address(debtHook),
-            address(usdc)
-        );
+        DebtOrderBook orderBook = new DebtOrderBook(address(debtHook), address(usdc));
         console.log("DebtOrderBook deployed:", address(orderBook));
-        
+
         // 6. Redeploy DebtHook with correct orderBook address
         debtHook = new DebtHook(
             poolManager,
@@ -100,14 +97,11 @@ contract Deploy is Script {
             TICK_SPACING
         );
         console.log("DebtHook redeployed:", address(debtHook));
-        
+
         // 7. Redeploy DebtOrderBook with correct DebtHook address
-        orderBook = new DebtOrderBook(
-            address(debtHook),
-            address(usdc)
-        );
+        orderBook = new DebtOrderBook(address(debtHook), address(usdc));
         console.log("DebtOrderBook redeployed:", address(orderBook));
-        
+
         // 8. Initialize pool
         PoolKey memory key = PoolKey({
             currency0: Currency.wrap(WETH),
@@ -116,10 +110,10 @@ contract Deploy is Script {
             tickSpacing: TICK_SPACING,
             hooks: IHooks(address(0))
         });
-        
+
         poolManager.initialize(key, SQRT_PRICE_1_1);
         console.log("Pool initialized");
-        
+
         // 9. Output deployment summary
         console.log("\n=== Deployment Summary ===");
         console.log("Network:", block.chainid);
@@ -129,13 +123,13 @@ contract Deploy is Script {
         console.log("DebtHook:", address(debtHook));
         console.log("DebtOrderBook:", address(orderBook));
         console.log("Treasury:", treasury);
-        
+
         vm.stopBroadcast();
-        
+
         // Output deployment JSON format for easy copying
         console.log("\n=== Deployment JSON ===");
         console.log("{");
-        console.log('  "chainId":', block.chainid, ',');
+        console.log('  "chainId":', block.chainid, ",");
         console.log('  "poolManager": "', address(poolManager), '",');
         console.log('  "usdc": "', address(usdc), '",');
         console.log('  "priceFeed": "', address(priceFeed), '",');
