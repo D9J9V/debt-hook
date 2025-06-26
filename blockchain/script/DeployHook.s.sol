@@ -31,8 +31,14 @@ contract DeployHook is Script {
     uint160 constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
 
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        address deployer = vm.addr(deployerPrivateKey);
+        uint256 deployerPrivateKey = vm.envOr("PRIVATE_KEY", uint256(0));
+        address deployer;
+        if (deployerPrivateKey == 0) {
+            // If no env var, script will use the private key from command line
+            deployer = msg.sender;
+        } else {
+            deployer = vm.addr(deployerPrivateKey);
+        }
         address treasury = vm.envOr("TREASURY", deployer);
 
         console.log("=== DebtHook Deployment ===");
@@ -40,7 +46,11 @@ contract DeployHook is Script {
         console.log("Treasury:", treasury);
         console.log("CREATE2 Deployer:", CREATE2_DEPLOYER);
 
-        vm.startBroadcast(deployerPrivateKey);
+        if (deployerPrivateKey == 0) {
+            vm.startBroadcast();
+        } else {
+            vm.startBroadcast(deployerPrivateKey);
+        }
 
         // 1. Deploy PoolManager
         PoolManager poolManager = new PoolManager(deployer);

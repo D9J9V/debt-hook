@@ -233,10 +233,11 @@ forge script script/DeployHookOptimized.s.sol \
 | Component | Unichain Sepolia | Ethereum Sepolia | Status |
 |-----------|------------------|------------------|---------|
 | **Smart Contracts** |
-| DebtHook | `0x...` | N/A | 🟡 Pending |
-| DebtOrderBook | `0x...` | N/A | 🟡 Pending |
-| ChainlinkPriceFeed | `0x...` | N/A | 🟡 Pending |
-| USDC Mock | `0x...` | N/A | 🟡 Pending |
+| PoolManager | `0x5b73C5498c1E3b4dbA84de0F1833c4a029d90519` | N/A | ✅ Deployed |
+| DebtHook | **`0x0C075a62FD69EA6Db1F65566911C4f1D221e40c8`** ⛏️ | N/A | ✅ Deployed |
+| DebtOrderBook | `0xDB8cFf278adCCF9E9b5da745B44E754fC4EE3C76` | N/A | ✅ Deployed |
+| ChainlinkPriceFeed | `0x34A1D3fff3958843C43aD80F30b94c510645C316` | N/A | ✅ Deployed |
+| USDC Mock | `0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496` | N/A | ✅ Deployed |
 | **EigenLayer** |
 | ServiceManager | N/A | `0x...` | 🟡 Pending |
 | AVS Registry | N/A | `0x...` | 🟡 Pending |
@@ -244,6 +245,8 @@ forge script script/DeployHookOptimized.s.sol \
 | Frontend URL | [app.debthook.io] | | ✅ Ready |
 | Supabase | [project-id] | | ✅ Configured |
 | Keeper Bot | | | 🟡 Pending |
+
+> ⛏️ **Note**: The DebtHook address was successfully mined to encode V4 hook permissions in the address itself! The address `0x0C075a62FD69EA6Db1F65566911C4f1D221e40c8` has bits 6, 7, and 3 set, enabling `beforeSwap`, `afterSwap`, and `beforeSwapReturnsDelta` callbacks.
 
 ### Pre-deployment Checklist
 - [ ] Run all smart contract tests
