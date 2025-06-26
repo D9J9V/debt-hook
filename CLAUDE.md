@@ -69,7 +69,12 @@ The protocol uses two main contracts:
 1. **DebtHook** (blockchain/src/DebtHook.sol): Core lending logic integrated as a Uniswap v4 hook
    - Manages collateralized debt positions with ETH collateral and USDC loans
    - Handles loan creation, repayment, and liquidation through Uniswap pools
-   - Implements `beforeSwap` and `afterSwap` hooks for liquidation mechanics
+   - **True V4 Hook**: Implements `beforeSwap` and `afterSwap` callbacks for automatic liquidations
+   - **Hook Address**: Must be deployed to an address with specific permission flags encoded (bits 6 & 7 set)
+   - **Liquidation Mechanics**:
+     - `beforeSwap`: Scans for liquidatable positions when swaps occur in the ETH/USDC pool
+     - `afterSwap`: Executes liquidation by selling collateral and distributing proceeds
+     - Liquidations are atomic with swaps, providing MEV protection and gas efficiency
 
 2. **DebtOrderBook** (blockchain/src/DebtOrderBook.sol): Off-chain order management
    - Uses EIP-712 signatures for gasless order creation
@@ -165,3 +170,40 @@ The v4-docs submodule contains critical implementation guides:
 - Security considerations for v4 integration
 
 Always refer to v4-docs when implementing hook functionality to ensure compliance with Uniswap v4 standards.
+
+## V4 Hook Implementation Details
+
+### Hook Permissions and Address Mining
+DebtHook must be deployed to an address with specific permission bits set:
+- **Bit 7 (BEFORE_SWAP_FLAG)**: Enables `beforeSwap` callback
+- **Bit 6 (AFTER_SWAP_FLAG)**: Enables `afterSwap` callback
+
+The deployment process requires:
+1. Use `HookMiner` to find a salt that produces an address with bits 6 & 7 set
+2. Deploy using CREATE2 with the mined salt
+3. Verify the deployed address matches expected permissions
+
+### Liquidation Flow via Hooks
+
+1. **Normal Swap Initiated**: User swaps in the ETH/USDC pool
+2. **beforeSwap Hook**:
+   - Checks if any loans are liquidatable (health factor < 1.5)
+   - If found, calculates collateral to liquidate
+   - Returns `BeforeSwapDelta` to modify swap amounts
+   - Stores liquidation data in transient storage
+3. **Swap Execution**: Uniswap processes the modified swap
+4. **afterSwap Hook**:
+   - Retrieves liquidation data from transient storage
+   - Distributes USDC proceeds to lender
+   - Sends penalty (5%) to treasury
+   - Returns remaining collateral to borrower
+   - Updates loan status to liquidated
+
+### Gas Optimization
+- Uses transient storage (TSTORE/TLOAD) for temporary liquidation data
+- Liquidations piggyback on existing swaps, no separate transactions
+- Batch liquidations possible in a single swap
+
+## Deployment Notes
+- We're going to deploy to Unichain Sepolia
+- Chainlink ETH/USD price feed: 0xd9c93081210dFc33326B2af4C2c11848095E6a9a

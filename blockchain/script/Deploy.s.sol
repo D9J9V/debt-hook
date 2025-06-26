@@ -9,7 +9,7 @@ import {Currency} from "v4-core/src/types/Currency.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
-import {DebtProtocol} from "../src/DebtProtocol.sol";
+import {DebtHook} from "../src/DebtHook.sol";
 import {DebtOrderBook} from "../src/DebtOrderBook.sol";
 import {IPriceFeed} from "../src/interfaces/IPriceFeed.sol";
 import {MockERC20} from "../test/mocks/MockERC20.sol";
@@ -68,42 +68,42 @@ contract Deploy is Script {
         IPriceFeed priceFeed = IPriceFeed(CHAINLINK_ETH_USD);
         console.log("Using Chainlink ETH/USD price feed:", address(priceFeed));
         
-        // 4. Deploy DebtProtocol with placeholder orderBook
-        DebtProtocol debtProtocol = new DebtProtocol(
+        // 4. Deploy DebtHook with placeholder orderBook
+        DebtHook debtHook = new DebtHook(
             poolManager,
+            address(priceFeed),
+            address(1), // Placeholder orderBook
+            treasury,
             Currency.wrap(WETH),
             Currency.wrap(address(usdc)),
             POOL_FEE,
-            TICK_SPACING,
-            priceFeed,
-            treasury,
-            address(1) // Placeholder
+            TICK_SPACING
         );
-        console.log("DebtProtocol deployed:", address(debtProtocol));
+        console.log("DebtHook deployed:", address(debtHook));
         
         // 5. Deploy DebtOrderBook
         DebtOrderBook orderBook = new DebtOrderBook(
-            address(debtProtocol),
+            address(debtHook),
             address(usdc)
         );
         console.log("DebtOrderBook deployed:", address(orderBook));
         
-        // 6. Redeploy DebtProtocol with correct orderBook address
-        debtProtocol = new DebtProtocol(
+        // 6. Redeploy DebtHook with correct orderBook address
+        debtHook = new DebtHook(
             poolManager,
+            address(priceFeed),
+            address(orderBook),
+            treasury,
             Currency.wrap(WETH),
             Currency.wrap(address(usdc)),
             POOL_FEE,
-            TICK_SPACING,
-            priceFeed,
-            treasury,
-            address(orderBook)
+            TICK_SPACING
         );
-        console.log("DebtProtocol redeployed:", address(debtProtocol));
+        console.log("DebtHook redeployed:", address(debtHook));
         
-        // 7. Redeploy DebtOrderBook with correct DebtProtocol address
+        // 7. Redeploy DebtOrderBook with correct DebtHook address
         orderBook = new DebtOrderBook(
-            address(debtProtocol),
+            address(debtHook),
             address(usdc)
         );
         console.log("DebtOrderBook redeployed:", address(orderBook));
@@ -126,7 +126,7 @@ contract Deploy is Script {
         console.log("PoolManager:", address(poolManager));
         console.log("USDC:", address(usdc));
         console.log("PriceFeed:", address(priceFeed));
-        console.log("DebtProtocol:", address(debtProtocol));
+        console.log("DebtHook:", address(debtHook));
         console.log("DebtOrderBook:", address(orderBook));
         console.log("Treasury:", treasury);
         
@@ -139,7 +139,7 @@ contract Deploy is Script {
         console.log('  "poolManager": "', address(poolManager), '",');
         console.log('  "usdc": "', address(usdc), '",');
         console.log('  "priceFeed": "', address(priceFeed), '",');
-        console.log('  "debtProtocol": "', address(debtProtocol), '",');
+        console.log('  "debtHook": "', address(debtHook), '",');
         console.log('  "debtOrderBook": "', address(orderBook), '",');
         console.log('  "treasury": "', treasury, '"');
         console.log("}");

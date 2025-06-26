@@ -9,7 +9,6 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
-import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {IPriceFeed} from "./interfaces/IPriceFeed.sol"; // Interfaz para Chainlink
@@ -17,6 +16,8 @@ import {IDebtHook} from "./interfaces/IDebtHook.sol";
 import {ERC20} from "solady/tokens/ERC20.sol";
 import {UD60x18, ud} from "prb-math/UD60x18.sol";
 import {mul, exp} from "prb-math/ud60x18/Math.sol";
+import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
 
 // DebtHook es un contrato que gestiona posiciones de deuda colateralizada.
 // Utiliza un pool de Uniswap v4 como capa de liquidación.
@@ -45,7 +46,21 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
     // Constantes de liquidación
     uint64 public constant GRACE_PERIOD = 24 hours;
     uint256 public constant PENALTY_BIPS = 500; // 5%
+    
+    // Custom errors
+    error LoanNotFound();
+    error LoanAlreadyRepaid();
+    error LoanNotLiquidatable();
 
+    // Storage mappings for loans
+    mapping(address => uint256[]) public borrowerLoans;
+    mapping(address => uint256[]) public lenderLoans;
+    
+    // Transient storage slots for liquidation data (using fixed slot numbers)
+    uint256 constant LIQUIDATION_LOAN_ID = 0x100;
+    uint256 constant LIQUIDATION_COLLATERAL_AMOUNT = 0x101;
+    uint256 constant LIQUIDATION_DEBT_AMOUNT = 0x102;
+    
     // Estructura para almacenar los detalles de cada préstamo
     struct Loan {
         bytes32 id;
@@ -145,6 +160,10 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
             status: LoanStatus.Active
         });
 
+        // Track loan for borrower and lender
+        borrowerLoans[params.borrower].push(loanCounter);
+        lenderLoans[params.lender].push(loanCounter);
+        
         // Transferir USDC del OrderBook (que ya tiene los fondos) al borrower
         ERC20(Currency.unwrap(currency1)).transferFrom(
             msg.sender,
@@ -163,8 +182,9 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
         Loan storage loan = loans[loanId];
         
         // Validaciones
+        if (loan.id == bytes32(0)) revert LoanNotFound();
         require(msg.sender == loan.borrower, "DebtHook: Not the borrower");
-        require(loan.status == LoanStatus.Active, "DebtHook: Loan not active");
+        if (loan.status != LoanStatus.Active) revert LoanAlreadyRepaid();
         require(
             block.timestamp >= loan.maturityTimestamp,
             "DebtHook: Loan not mature"
@@ -365,6 +385,72 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
         return value;
     }
 
+    // --- Public View Functions ---
+    
+    /**
+     * @notice Get loan details by ID
+     * @param loanId The ID of the loan
+     * @return The loan details
+     */
+    function getLoan(uint256 loanId) public view returns (Loan memory) {
+        bytes32 id = keccak256(abi.encodePacked(loanId));
+        return loans[id];
+    }
+    
+    /**
+     * @notice Get all loans for a borrower
+     * @param borrower The borrower address
+     * @return Array of loan IDs
+     */
+    function getBorrowerLoans(address borrower) public view returns (uint256[] memory) {
+        return borrowerLoans[borrower];
+    }
+    
+    /**
+     * @notice Get all loans for a lender
+     * @param lender The lender address
+     * @return Array of loan IDs
+     */
+    function getLenderLoans(address lender) public view returns (uint256[] memory) {
+        return lenderLoans[lender];
+    }
+    
+    /**
+     * @notice Calculate the current repayment amount for a loan
+     * @param loan The loan to calculate repayment for
+     * @return The total amount to repay (principal + interest)
+     */
+    function calculateRepaymentAmount(Loan memory loan) public view returns (uint256) {
+        return _calculateCurrentDebt(loan);
+    }
+    
+    /**
+     * @notice Helper to repay loan by numeric ID (for testing)
+     * @param loanIdNum The numeric loan ID
+     */
+    function repayLoan(uint256 loanIdNum) external {
+        bytes32 loanId = keccak256(abi.encodePacked(loanIdNum));
+        this.repayLoan(loanId);
+    }
+    
+    /**
+     * @notice Check if a loan is liquidatable
+     * @param loan The loan to check
+     * @return True if the loan can be liquidated
+     */
+    function isLiquidatable(Loan memory loan) public view returns (bool) {
+        // Check if loan is active
+        if (loan.status != LoanStatus.Active) return false;
+        
+        // Calculate health factor
+        uint256 collateralValue = _getCollateralValue(loan);
+        uint256 currentDebt = _calculateCurrentDebt(loan);
+        
+        // Health factor = collateralValue / currentDebt
+        // Liquidatable if health factor < 1.5 (150%)
+        return (collateralValue * 100) < (currentDebt * 150);
+    }
+
     // --- Hook Permissions ---
     // Este Hook no reacciona a los eventos del pool, sino que lo *utiliza* como una herramienta.
     // Por lo tanto, no se necesitan permisos de Hook.
@@ -382,14 +468,213 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
                 afterAddLiquidity: false,
                 beforeRemoveLiquidity: false,
                 afterRemoveLiquidity: false,
-                beforeSwap: false,
-                afterSwap: false,
+                beforeSwap: true,
+                afterSwap: true,
                 beforeDonate: false,
                 afterDonate: false,
-                beforeSwapReturnDelta: false,
+                beforeSwapReturnDelta: true, // We'll modify swap amounts for liquidations
                 afterSwapReturnDelta: false,
                 afterAddLiquidityReturnDelta: false,
                 afterRemoveLiquidityReturnDelta: false
             });
+    }
+
+    // --- Hook Implementation ---
+
+    /**
+     * @notice Called before a swap to check for liquidatable positions
+     * @dev Scans active loans and modifies swap if liquidation is needed
+     */
+    function _beforeSwap(
+        address,
+        PoolKey calldata key,
+        SwapParams calldata params,
+        bytes calldata
+    ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
+        // Only process swaps in our ETH/USDC pool
+        if (Currency.unwrap(key.currency0) != Currency.unwrap(currency0) || 
+            Currency.unwrap(key.currency1) != Currency.unwrap(currency1)) {
+            return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+        }
+
+        // Find the first liquidatable loan
+        bytes32 liquidatableLoanId = _findLiquidatableLoan();
+        
+        if (liquidatableLoanId == bytes32(0)) {
+            // No liquidatable loans found
+            return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+        }
+
+        Loan storage loan = loans[liquidatableLoanId];
+        
+        // Calculate liquidation amounts
+        (uint256 collateralToLiquidate, uint256 debtToRepay) = _calculateLiquidationAmounts(loan);
+        
+        // Store liquidation data in transient storage for afterSwap
+        assembly {
+            tstore(LIQUIDATION_LOAN_ID, liquidatableLoanId)
+            tstore(LIQUIDATION_COLLATERAL_AMOUNT, collateralToLiquidate)
+            tstore(LIQUIDATION_DEBT_AMOUNT, debtToRepay)
+        }
+
+        // Modify swap to include liquidation
+        // If swapping ETH for USDC (zeroForOne), we add collateral to sell
+        // If swapping USDC for ETH (!zeroForOne), we need USDC to cover debt
+        BeforeSwapDelta delta;
+        if (params.zeroForOne) {
+            // Selling ETH for USDC - perfect for liquidation
+            // Add collateral amount to the ETH being sold
+            delta = BeforeSwapDelta.wrap(int256(collateralToLiquidate) << 128);
+        } else {
+            // Buying ETH with USDC - need to ensure enough USDC output
+            // This is more complex and may need different handling
+            delta = BeforeSwapDeltaLibrary.ZERO_DELTA;
+        }
+
+        return (IHooks.beforeSwap.selector, delta, 0);
+    }
+
+    /**
+     * @notice Called after a swap to complete liquidation
+     * @dev Distributes liquidation proceeds and updates loan state
+     */
+    function _afterSwap(
+        address,
+        PoolKey calldata key,
+        SwapParams calldata,
+        BalanceDelta delta,
+        bytes calldata
+    ) internal override returns (bytes4, int128) {
+        // Only process our pool
+        if (Currency.unwrap(key.currency0) != Currency.unwrap(currency0) || 
+            Currency.unwrap(key.currency1) != Currency.unwrap(currency1)) {
+            return (BaseHook.afterSwap.selector, 0);
+        }
+
+        // Retrieve liquidation data from transient storage
+        bytes32 loanId;
+        uint256 collateralAmount;
+        uint256 debtAmount;
+        
+        assembly {
+            loanId := tload(LIQUIDATION_LOAN_ID)
+            collateralAmount := tload(LIQUIDATION_COLLATERAL_AMOUNT)
+            debtAmount := tload(LIQUIDATION_DEBT_AMOUNT)
+        }
+
+        // If no liquidation was triggered, return
+        if (loanId == bytes32(0)) {
+            return (IHooks.afterSwap.selector, 0);
+        }
+
+        // Clear transient storage
+        assembly {
+            tstore(LIQUIDATION_LOAN_ID, 0)
+            tstore(LIQUIDATION_COLLATERAL_AMOUNT, 0)
+            tstore(LIQUIDATION_DEBT_AMOUNT, 0)
+        }
+
+        // Complete the liquidation
+        _completeLiquidation(loanId, collateralAmount, debtAmount, delta);
+
+        return (IHooks.afterSwap.selector, 0);
+    }
+
+    /**
+     * @notice Find the first liquidatable loan
+     * @dev Iterates through active loans to find one that can be liquidated
+     */
+    function _findLiquidatableLoan() internal view returns (bytes32) {
+        uint256 loanCount = loanCounter;
+        
+        for (uint256 i = 1; i <= loanCount; i++) {
+            bytes32 loanId = keccak256(abi.encodePacked(i));
+            Loan storage loan = loans[loanId];
+            
+            // Skip if loan is not active
+            if (loan.status != LoanStatus.Active) continue;
+            
+            // Check if loan is liquidatable
+            if (isLiquidatable(loan)) {
+                return loanId;
+            }
+        }
+        
+        return bytes32(0);
+    }
+
+    /**
+     * @notice Calculate amounts for liquidation
+     * @dev Returns collateral to sell and debt to repay
+     */
+    function _calculateLiquidationAmounts(Loan storage loan) 
+        internal 
+        view 
+        returns (uint256 collateralToLiquidate, uint256 debtToRepay) 
+    {
+        // Get current debt including interest
+        uint256 totalDebt = calculateRepaymentAmount(loan);
+        
+        // In a full liquidation, we take all collateral and repay all debt
+        collateralToLiquidate = loan.collateralAmount;
+        debtToRepay = totalDebt;
+        
+        // TODO: Implement partial liquidations if needed
+    }
+
+    /**
+     * @notice Complete the liquidation after swap
+     * @dev Distributes proceeds and updates loan state
+     */
+    function _completeLiquidation(
+        bytes32 loanId,
+        uint256 collateralLiquidated,
+        uint256 debtRepaid,
+        BalanceDelta swapDelta
+    ) internal {
+        Loan storage loan = loans[loanId];
+        
+        // Calculate proceeds from swap (USDC received for ETH sold)
+        uint256 usdcReceived = uint256(int256(-swapDelta.amount1()));
+        
+        // Calculate penalty (5% of USDC received)
+        uint256 penalty = (usdcReceived * PENALTY_BIPS) / 10000;
+        
+        // Distribute funds:
+        // 1. Repay lender (principal + interest - penalty)
+        uint256 lenderAmount = usdcReceived > penalty ? usdcReceived - penalty : 0;
+        if (lenderAmount > debtRepaid) {
+            lenderAmount = debtRepaid; // Cap at actual debt
+        }
+        
+        // For V4 hooks, we need to handle transfers differently
+        // The hook receives tokens from the swap, and we need to distribute them
+        
+        // 2. Transfer penalty to treasury
+        if (penalty > 0) {
+            ERC20(Currency.unwrap(currency1)).transfer(treasury, penalty);
+        }
+        
+        // 3. Transfer remaining to lender
+        if (lenderAmount > 0) {
+            ERC20(Currency.unwrap(currency1)).transfer(loan.lender, lenderAmount);
+        }
+        
+        // 4. Return any excess to borrower (rare in liquidation)
+        uint256 excessUSDC = usdcReceived > (lenderAmount + penalty) ? 
+            usdcReceived - lenderAmount - penalty : 0;
+        if (excessUSDC > 0) {
+            ERC20(Currency.unwrap(currency1)).transfer(loan.borrower, excessUSDC);
+        }
+        
+        // Update loan status
+        loan.status = LoanStatus.Liquidated;
+        
+        // Emit liquidation event
+        emit LoanLiquidated(
+            loanId,
+            usdcReceived,
+            excessUSDC
+        );
     }
 }
