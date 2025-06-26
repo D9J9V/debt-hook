@@ -30,14 +30,24 @@ contract Deploy is Script {
     address treasury;
     
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        address deployer = vm.addr(deployerPrivateKey);
+        uint256 deployerPrivateKey = vm.envOr("PRIVATE_KEY", uint256(0));
+        address deployer;
+        if (deployerPrivateKey == 0) {
+            // If no env var, script will use the private key from command line
+            deployer = msg.sender;
+        } else {
+            deployer = vm.addr(deployerPrivateKey);
+        }
         treasury = vm.envOr("TREASURY", deployer);
         
         console.log("Deploying from:", deployer);
         console.log("Treasury:", treasury);
         
-        vm.startBroadcast(deployerPrivateKey);
+        if (deployerPrivateKey == 0) {
+            vm.startBroadcast();
+        } else {
+            vm.startBroadcast(deployerPrivateKey);
+        }
         
         // 1. Deploy PoolManager if needed
         IPoolManager poolManager;
@@ -125,20 +135,16 @@ contract Deploy is Script {
         
         vm.stopBroadcast();
         
-        // Write deployment addresses to file
-        string memory deploymentData = string(abi.encodePacked(
-            '{\n',
-            '  "chainId": ', vm.toString(block.chainid), ',\n',
-            '  "poolManager": "', vm.toString(address(poolManager)), '",\n',
-            '  "usdc": "', vm.toString(address(usdc)), '",\n',
-            '  "priceFeed": "', vm.toString(address(priceFeed)), '",\n',
-            '  "debtProtocol": "', vm.toString(address(debtProtocol)), '",\n',
-            '  "debtOrderBook": "', vm.toString(address(orderBook)), '",\n',
-            '  "treasury": "', vm.toString(treasury), '"\n',
-            '}'
-        ));
-        
-        vm.writeFile("deployments/latest.json", deploymentData);
-        console.log("\nDeployment data written to deployments/latest.json");
+        // Output deployment JSON format for easy copying
+        console.log("\n=== Deployment JSON ===");
+        console.log("{");
+        console.log('  "chainId":', block.chainid, ',');
+        console.log('  "poolManager": "', address(poolManager), '",');
+        console.log('  "usdc": "', address(usdc), '",');
+        console.log('  "priceFeed": "', address(priceFeed), '",');
+        console.log('  "debtProtocol": "', address(debtProtocol), '",');
+        console.log('  "debtOrderBook": "', address(orderBook), '",');
+        console.log('  "treasury": "', treasury, '"');
+        console.log("}");
     }
 }

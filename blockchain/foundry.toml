@@ -7,6 +7,11 @@ libs = ["lib"]
 
 solc = '0.8.26'
 evm_version = 'cancun'
-optimizer_runs = 800
-via_ir = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+# Additional optimization settings
+[profile.default.optimizer_details]
+yul = true
+yulDetails = { stackAllocation = true, optimizerSteps = "dhfoDgvulfnTUtnIf" }
 ffi = true
