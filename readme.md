@@ -118,12 +118,31 @@ where:
 ```
 This ensures fair interest accrual regardless of repayment timing.
 
+### EigenLayer Integration Architecture
+
+**No Cross-Chain Communication Required!** The architecture is elegantly simple:
+
+1. **Orders are signed off-chain** using EIP-712 (signatures work on any chain)
+2. **EigenLayer AVS on Ethereum Sepolia** acts as a decentralized verification layer
+3. **All DeFi execution happens on Unichain Sepolia** (lending, liquidations, etc.)
+
+```
+User Flow:
+1. Sign order (off-chain) → 
+2. Submit to operators (API) → 
+3. Operators match & create proof (Ethereum) → 
+4. Submit proof to DebtOrderBook (Unichain) → 
+5. Execute loans (Unichain)
+```
+
+This design avoids cross-chain complexity while leveraging EigenLayer's security guarantees.
+
 ### Off-Chain Components
 
 1. **Operator Node** (TypeScript):
    - Monitors new loan orders
    - Runs CoW matching algorithm
-   - Submits matched batches to ServiceManager
+   - Submits matched batches to Unichain (not cross-chain!)
    - Optimizes for best interest rates
 
 2. **Frontend** (Next.js):
