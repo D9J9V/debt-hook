@@ -258,8 +258,8 @@ forge script script/DeployHookOptimized.s.sol \
 | ChainlinkPriceFeed | `0x34A1D3fff3958843C43aD80F30b94c510645C316` | N/A | ✅ Deployed |
 | USDC Mock | `0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496` | N/A | ✅ Deployed |
 | **EigenLayer** |
-| ServiceManager | N/A | `0x...` | 🟡 Pending |
-| AVS Registry | N/A | `0x...` | 🟡 Pending |
+| ServiceManager | N/A | `0x3333Bc77EdF180D81ff911d439F02Db9e34e8603` | ✅ Deployed |
+| StakeRegistry | N/A | `0x3Df55660F015689174cd42F2FF7D2e36564404b5` | ✅ Deployed |
 | **Infrastructure** |
 | Frontend URL | [app.debthook.io] | | ✅ Ready |
 | Supabase | [project-id] | | ✅ Configured |
