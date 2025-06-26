@@ -13,12 +13,6 @@
 [submodule "dapp"]
 	path = dapp
 	url = git@github.com:D9J9V/debt-hook-dapp.git
-[submodule "v4-docs"]
-	path = v4-docs
-	url = https://github.com/D9J9V/v4-docs.git
-[submodule "viem-docs"]
-	path = viem-docs
-	url = https://github.com/wevm/viem.git
 [submodule "blockchain/lib/chainlink"]
 	path = blockchain/lib/chainlink
 	url = https://github.com/smartcontractkit/chainlink

@@ -228,6 +228,38 @@ forge script script/DeployHookOptimized.s.sol \
   --verify
 ```
 
+## 📋 Deployment Status
+
+| Component | Unichain Sepolia | Ethereum Sepolia | Status |
+|-----------|------------------|------------------|---------|
+| **Smart Contracts** |
+| DebtHook | `0x...` | N/A | 🟡 Pending |
+| DebtOrderBook | `0x...` | N/A | 🟡 Pending |
+| ChainlinkPriceFeed | `0x...` | N/A | 🟡 Pending |
+| USDC Mock | `0x...` | N/A | 🟡 Pending |
+| **EigenLayer** |
+| ServiceManager | N/A | `0x...` | 🟡 Pending |
+| AVS Registry | N/A | `0x...` | 🟡 Pending |
+| **Infrastructure** |
+| Frontend URL | [app.debthook.io] | | ✅ Ready |
+| Supabase | [project-id] | | ✅ Configured |
+| Keeper Bot | | | 🟡 Pending |
+
+### Pre-deployment Checklist
+- [ ] Run all smart contract tests
+- [ ] Mine hook address with correct permissions
+- [ ] Verify contract compilation
+- [ ] Test frontend build
+- [ ] Configure environment variables
+- [ ] Set up monitoring
+
+### Post-deployment Tasks
+- [ ] Verify all contracts on explorer
+- [ ] Test end-to-end flows
+- [ ] Configure keeper bot
+- [ ] Enable Supabase RLS
+- [ ] Set up alerts
+
 ## 🎨 Frontend Features
 
 - **Market View**: Real-time order book with depth chart

@@ -27,8 +27,8 @@ DebtHook is a DeFi lending protocol that leverages Uniswap v4 hooks for efficien
 - Accept USDC payment for transaction costs
 - Seamless UX for non-ETH holders
 
-### Phase C: Eigenlayer Integration (Advanced Feature)
-**Goal**: Decentralized debt order matching with Coincidence of Wants
+### Phase C: Eigenlayer Integration (Advanced Feature) ✅
+**Status**: Batch matching integration complete
 - Eigenlayer AVS for orderbook validation
 - Cryptographic proofs for order integrity
 - Slashing for malicious orderbook operators
@@ -36,6 +36,13 @@ DebtHook is a DeFi lending protocol that leverages Uniswap v4 hooks for efficien
 - **UniCow Integration**: CoW matching for debt orders (NOT liquidations)
 - Optimal interest rate discovery through batch matching
 - See `unicow/README.md` for rationale and `unicow/CLAUDE.md` for implementation
+
+#### Batch Matching Features
+- **Dual Execution Modes**: Direct (instant) or Batch (optimized rates)
+- **Flexible Parameters**: Min/max principal amounts and interest rate ranges
+- **5-minute Batch Windows**: Configurable collection periods
+- **Partial Fill Support**: Orders can be partially matched
+- **Gas Efficiency**: Batch execution reduces per-order costs
 
 ## Project Structure
 
@@ -49,12 +56,13 @@ debt-hook/
 │   ├── app/            # App router pages
 │   ├── components/     # React components
 │   └── lib/            # Utilities and hooks
-├── v4-docs/            # Uniswap v4 documentation (submodule)
-│   └── docs/           # Implementation guides and best practices
-└── unicow/             # EigenLayer AVS for CoW market making (submodule)
-    ├── hook/           # Uniswap v4 hook for CoW matching
-    ├── avs/            # EigenLayer service manager
-    └── operator/       # TypeScript operator implementation
+├── unicow/             # EigenLayer AVS for CoW market making (submodule)
+│   ├── hook/           # Uniswap v4 hook for CoW matching
+│   ├── avs/            # EigenLayer service manager
+│   └── operator/       # TypeScript operator implementation
+└── supabase/           # Database schema and edge functions
+    ├── migrations/     # SQL migrations for tables and views
+    └── functions/      # Edge functions for batch processing
 ```
 
 ## Common Commands
@@ -169,8 +177,7 @@ This project uses git submodules for modular development:
 
 ### Submodules
 1. **dapp**: Next.js frontend application
-2. **v4-docs**: Uniswap v4 documentation for implementation reference
-3. **unicow**: EigenLayer AVS for Coincidence of Wants market making
+2. **unicow**: EigenLayer AVS for Coincidence of Wants market making
 
 ### Common Submodule Commands
 ```bash
@@ -186,22 +193,12 @@ git submodule update --remote
 
 # Update specific submodule
 git submodule update --remote dapp
-git submodule update --remote v4-docs
 git submodule update --remote unicow
 
 # Commit submodule changes
-git add dapp v4-docs unicow
+git add dapp unicow
 git commit -m "Update submodules"
 ```
-
-### V4 Documentation Reference
-The v4-docs submodule contains critical implementation guides:
-- Hook development best practices
-- Pool initialization patterns
-- Liquidation mechanism examples
-- Security considerations for v4 integration
-
-Always refer to v4-docs when implementing hook functionality to ensure compliance with Uniswap v4 standards.
 
 ## V4 Hook Implementation Details
 
@@ -265,6 +262,60 @@ The deployment process requires:
    - [ ] Test basic loan flow on testnet
    - [ ] Set up monitoring and alerts
 
+## Deployment Process
+
+### Smart Contract Deployment
+```bash
+# 1. Deploy contracts
+cd blockchain
+forge script script/Deploy.s.sol \
+  --rpc-url $UNICHAIN_SEPOLIA_RPC \
+  --private-key $PRIVATE_KEY \
+  --broadcast \
+  --verify
+
+# 2. Set ServiceManager for AVS
+cast send $DEBT_ORDER_BOOK_ADDRESS \
+  "setServiceManager(address)" \
+  $SERVICE_MANAGER_ADDRESS \
+  --rpc-url $UNICHAIN_SEPOLIA_RPC \
+  --private-key $PRIVATE_KEY
+```
+
+### EigenLayer AVS Setup
+```bash
+# 1. Deploy ServiceManager
+cd unicow/contracts
+forge script script/DeployServiceManager.s.sol \
+  --rpc-url $ETHEREUM_SEPOLIA_RPC \
+  --private-key $PRIVATE_KEY \
+  --broadcast
+
+# 2. Configure and start operator
+cd ../operator
+npm install
+npm run register-operator
+npm run start
+```
+
+### Frontend Deployment
+```bash
+# 1. Update environment variables
+cd dapp
+cp .env.example .env.local
+# Edit .env.local with deployed addresses
+
+# 2. Build and deploy
+pnpm build
+vercel --prod
+```
+
+### Supabase Configuration
+1. Apply database migrations in order
+2. Deploy edge functions for batch processing
+3. Configure webhooks for batch events
+4. Enable Row Level Security policies
+
 ## Development Best Practices
 
 ### When Working on Contracts
@@ -287,3 +338,17 @@ The deployment process requires:
 3. Document architectural decisions
 4. Consider backwards compatibility
 5. Plan for progressive enhancement
+
+## Troubleshooting
+
+### Common Issues
+1. **ServiceManager not set**: Use `setServiceManager` function on DebtOrderBook
+2. **Hook address permissions**: Ensure mined address has bits 6 & 7 set
+3. **Batch not executing**: Check operator status and minimum order threshold
+4. **Frontend not showing batch option**: Verify ServiceManager configuration
+
+### Monitoring
+- Contract events: Use cast logs or Tenderly
+- Operator status: Check operator logs
+- Batch execution: Monitor Supabase batch tables
+- Gas usage: Track via Dune Analytics

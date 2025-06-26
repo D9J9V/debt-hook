@@ -674,16 +674,16 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
         loanIds = new bytes32[](matches.length);
         
         for (uint256 i = 0; i < matches.length; i++) {
-            LoanMatch calldata match = matches[i];
+            LoanMatch calldata loanMatch = matches[i];
             
             // Create loan parameters from match
             CreateLoanParams memory params = CreateLoanParams({
-                lender: match.lender,
-                borrower: match.borrower,
-                principalAmount: match.principalAmount,
+                lender: loanMatch.lender,
+                borrower: loanMatch.borrower,
+                principalAmount: loanMatch.principalAmount,
                 collateralAmount: 0, // Will be provided by borrower separately
-                maturityTimestamp: uint64(match.maturityTimestamp),
-                interestRateBips: uint32(match.interestRateBips)
+                maturityTimestamp: uint64(loanMatch.maturityTimestamp),
+                interestRateBips: uint32(loanMatch.interestRateBips)
             });
             
             // Generate loan ID
