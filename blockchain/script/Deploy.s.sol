@@ -11,15 +11,16 @@ import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {DebtProtocol} from "../src/DebtProtocol.sol";
 import {DebtOrderBook} from "../src/DebtOrderBook.sol";
-import {MockPriceFeed} from "../src/mocks/MockPriceFeed.sol";
+import {IPriceFeed} from "../src/interfaces/IPriceFeed.sol";
 import {MockERC20} from "../test/mocks/MockERC20.sol";
 
 /// @title Deploy Script
 /// @notice Deploys the DebtProtocol system to testnet
 contract Deploy is Script {
-    // Sepolia addresses (update for your target network)
+    // Unichain Sepolia addresses
     address constant WETH = address(0); // Native ETH
     address constant POOL_MANAGER = address(0); // Deploy new or use existing
+    address constant CHAINLINK_ETH_USD = 0xd9c93081210dFc33326B2af4C2c11848095E6a9a; // ETH/USD on Unichain Sepolia
     
     // Pool configuration
     uint24 constant POOL_FEE = 3000; // 0.3%
@@ -63,13 +64,9 @@ contract Deploy is Script {
         MockERC20 usdc = new MockERC20("USD Coin", "USDC", 6);
         console.log("USDC deployed:", address(usdc));
         
-        // 3. Deploy price feed
-        MockPriceFeed priceFeed = new MockPriceFeed(
-            2000e8, // $2000 ETH price
-            8,
-            "ETH/USD"
-        );
-        console.log("PriceFeed deployed:", address(priceFeed));
+        // 3. Use Chainlink price feed
+        IPriceFeed priceFeed = IPriceFeed(CHAINLINK_ETH_USD);
+        console.log("Using Chainlink ETH/USD price feed:", address(priceFeed));
         
         // 4. Deploy DebtProtocol with placeholder orderBook
         DebtProtocol debtProtocol = new DebtProtocol(

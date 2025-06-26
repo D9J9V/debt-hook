@@ -19,3 +19,6 @@
 [submodule "viem-docs"]
 	path = viem-docs
 	url = https://github.com/wevm/viem.git
+[submodule "blockchain/lib/chainlink"]
+	path = blockchain/lib/chainlink
+	url = https://github.com/smartcontractkit/chainlink

@@ -18,6 +18,8 @@ import {DebtOrderBook} from "../src/DebtOrderBook.sol";
 import {DebtProtocol} from "../src/DebtProtocol.sol";
 import {IDebtProtocol} from "../src/interfaces/IDebtProtocol.sol";
 import {MockPriceFeed} from "../src/mocks/MockPriceFeed.sol";
+import {ChainlinkPriceFeed} from "../src/ChainlinkPriceFeed.sol";
+import {IPriceFeed} from "../src/interfaces/IPriceFeed.sol";
 
 // Mocks
 import {MockERC20} from "./mocks/MockERC20.sol";
@@ -62,7 +64,7 @@ contract DebtProtocolTest is Test {
     DebtProtocol debtProtocol;
     DebtOrderBook orderBook;
     MockERC20 usdc;
-    MockPriceFeed priceFeed;
+    IPriceFeed priceFeed;
     PoolModifyLiquidityTest modifyLiquidityRouter;
 
     // Pool configuration
