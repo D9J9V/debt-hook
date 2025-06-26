@@ -1,16 +1,16 @@
 # DebtHook Protocol
 
-A revolutionary DeFi lending protocol that combines Uniswap V4 hooks for efficient liquidations with EigenLayer AVS for decentralized order matching, creating the most capital-efficient lending market.
+A revolutionary DeFi lending protocol that combines Uniswap V4 hooks for efficient liquidations with EigenLayer AVS for decentralized order matching creating the most capital-efficient lending market.
 
-## 🚀 Overview
+## Overview
 
-DebtHook is a next-generation lending protocol that leverages three key innovations:
+DebtHook is a lending protocol that leverages three key innovations:
 
 1. **Uniswap V4 Hooks**: Atomic liquidations within swap transactions
-2. **EigenLayer AVS**: Decentralized order matching with Coincidence of Wants (CoW)
-3. **Smart Account Integration**: Gas-free transactions for USDC lenders
+2. **EigenLayer AVS**: Decentralized debt order matching with Coincidence of Wants (CoW)
+3. **Circle Paymaster Integration**: Users pay transaction fees with USDC instead of ETH 
 
-## 🎯 Core Mechanics
+## Core Mechanics
 
 ### How It Works
 
@@ -28,17 +28,19 @@ DebtHook is a next-generation lending protocol that leverages three key innovati
 3. **Loan Execution**:
    - Matched orders execute in batches on-chain
    - USDC transfers from lenders to borrowers
-   - Borrowers deposit ETH collateral (150% collateralization ratio)
+   - Borrowers deposit ETH collateral following barrier option model from theory.md
    - All loans tracked in the DebtHook contract
 
 4. **Liquidations**:
-   - Monitors health factor during ETH/USDC swaps
-   - If collateral value < 150% of debt, liquidation triggers
-   - Executes atomically within the swap transaction
+   - Implements barrier option model: liquidation triggers when C_t = D_t (collateral equals debt)
+   - This creates a "Down-and-Out Call" for borrowers and "Protected Put" for lenders
+   - Executes atomically within ETH/USDC swaps via V4 hooks
    - No separate liquidation bots or transactions needed
+   - 5% liquidation penalty to treasury, remaining collateral returns to borrower
 
-### Key Innovation: CoW for Lending
+### Key Innovations
 
+#### 1. EigenLayer Verified CoW for Interest Rates
 Unlike traditional lending protocols where rates are set by utilization curves, DebtHook uses Coincidence of Wants matching:
 
 ```
@@ -49,6 +51,20 @@ Example:
 - Alice: Wants to lend 10,000 USDC at 5%+ APR
 - Bob: Wants to borrow 10,000 USDC at 6%- APR
 - Result: Matched at 5.5% APR (optimal for both)
+```
+#### 2. All-or-Nothing Fair Liquidation
+Unlike traditional lending protocols where liquidation depends on keepers, we leverage hooks to run all-or-nothing liquidations that disperse payouts fairly:
+
+```
+Traditional: MEV-prone keeper liquidations with race conditions
+DebtHook: Atomic liquidations within swap transactions
+
+Example:
+- Loan becomes liquidatable (C_t = D_t)
+- Next ETH/USDC swap automatically triggers liquidation
+- Lender receives full debt repayment
+- Treasury gets 5% penalty
+- Borrower gets remaining collateral
 ```
 
 ## 🏗️ Architecture
@@ -139,7 +155,7 @@ This ensures fair interest accrual regardless of repayment timing.
 - **Atomic Liquidations**: No MEV extraction possible
 - **EigenLayer Security**: Operators stake assets and can be slashed
 - **Chainlink Oracles**: Reliable ETH/USD price feeds
-- **Over-collateralization**: 150% minimum collateral ratio
+- **Dynamic Collateral Model**: Barrier option liquidation when C_t = D_t
 - **Signature Validation**: EIP-712 prevents order tampering
 
 ## 🚦 Deployment Status
@@ -217,8 +233,36 @@ forge script script/DeployHookOptimized.s.sol \
 - **Market View**: Real-time order book with depth chart
 - **Portfolio Dashboard**: Active positions for lenders and borrowers
 - **Order Builder**: Intuitive interface for creating orders
-- **Gas Abstraction**: Pay gas in USDC (via Privy smart wallets)
+- **Gas Abstraction**: Pay gas in USDC via Circle Paymaster
 - **Mobile Responsive**: Full functionality on all devices
+
+## 💳 USDC Gas Payment Integration
+
+DebtHook integrates Circle's USDC Paymaster for seamless gas payments:
+
+### How It Works
+1. **Permit Signing**: Users sign an EIP-2612 permit allowing the paymaster to spend USDC
+2. **Gas Estimation**: Frontend calculates USDC cost based on current gas prices
+3. **Atomic Payment**: Gas fees deducted from USDC balance during transaction
+4. **No ETH Required**: Perfect for users who only hold stablecoins
+
+### Implementation Details
+- **CirclePaymaster.sol**: EIP-4337 compliant paymaster contract
+- **Dynamic Pricing**: Configurable exchange rate (initially 1 USDC = 3000 gwei)
+- **Safety Buffer**: 10% markup on gas estimates to handle price fluctuations
+- **Frontend Toggle**: Users can choose between ETH or USDC for gas
+
+### Usage Example
+```typescript
+// Enable USDC gas payment in frontend
+const { preparePaymaster } = usePaymaster()
+const paymasterData = await preparePaymaster(estimatedGasLimit)
+
+// Transaction automatically uses USDC for gas
+await debtOrderBook.createLoanWithOrder(order, signature, {
+  paymasterAndData: paymasterData
+})
+```
 
 ## 📊 Protocol Advantages
 
@@ -249,32 +293,30 @@ DebtHook can be integrated as a lending layer for any protocol needing capital-e
 
 ## 🔮 Future Roadmap
 
-### Phase 1: Optimize Current Architecture (Post-MVP)
-1. **Custom Accounting for Batch Liquidations**
-   - Accumulate multiple liquidations in single transaction
+### Phase 1: Optimize Current Architecture (Post-MVP Q3 2025)
+1. **Enhanced Batch Liquidation System** (Planned)
+   - Current implementation handles single liquidations per swap
+   - Future: Accumulate multiple liquidations in single transaction
    - Gas savings: ~70% vs individual liquidations
-   - Distribute proceeds fairly using deltas
+   - Distribute proceeds fairly using delta accounting
 
 2. **Advanced V4 Hook Features**
    - Fee reduction hook for protocol users
    - Loyalty points system for liquidity providers
-   - MEV protection through whitelisted liquidators
+### Phase 2: USDC Paymaster (Implemented ✅)
+- **CirclePaymaster.sol**: Full EIP-4337 paymaster implementation
+- **EIP-2612 Permits**: Gasless USDC approvals for fee payment
+- **Frontend Integration**: Toggle for USDC gas payments in UI
+- **Smart Account Support**: Works with both EOAs and smart wallets
+- Users can pay gas in USDC with ~10% buffer for price fluctuations
 
-### Phase 2: USDC Paymaster (Q1 2024)
-- EIP-4337 smart account integration
-- Gas payment in USDC for lenders
-- Seamless UX without ETH requirement
-- Integration with Privy's infrastructure
-
-### Phase 3: Enhanced Features (Q2 2024)
-- Multi-collateral support (wBTC, stETH)
+### Phase 3: Enhanced Features (Q4 2025)
+- Multi-collateral support (wBTC)
 - Cross-chain lending via LayerZero
-- Fixed-rate term structures
-- Institutional API
+- Advanced fixed-rate term structures (current: basic maturity timestamps)
 
-### Phase 4: Advanced DeFi (Q3 2024)
-- Perpetual lending positions
-- Yield strategies integration
+### Phase 4: Advanced DeFi (2026+)
+- Institutional API
 - Just-In-Time (JIT) liquidity provision
 - DAO governance
 
@@ -298,13 +340,13 @@ Built for the Uniswap V4 Hookathon, DebtHook demonstrates:
 - First lending protocol with native V4 hook liquidations
 - Pioneer implementation of CoW for debt markets
 - Seamless integration of EigenLayer AVS with DeFi
+- **USDC Gas Payments**: Full Circle Paymaster integration for gasless transactions
 
 ## 📚 Documentation
 
-- [Technical Specification](./docs/TECHNICAL_SPEC.md)
+- [Smart Contract Documentation](./blockchain/README.md)
 - [Operator Guide](./unicow/README.md)
 - [Frontend Documentation](./dapp/README.md)
-- [Security Audit](./audits/README.md) (Coming Soon)
 
 ## 🤝 Contributing
 
@@ -317,3 +359,4 @@ MIT License - see [LICENSE](./LICENSE) for details.
 ---
 
 **Built with ❤️ for the Uniswap V4 Hookathon** 🦄
+**Thanks Atrium Academy, Uniswap Foundation and accross the globe open source builders**
