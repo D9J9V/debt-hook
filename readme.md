@@ -45,15 +45,28 @@ forge script blockchain/script/DeployHookOptimized.s.sol \
 - [ ] Conduct thorough testing on testnet
 
 ### Phase B: USDC Paymaster 🚧 (Next Priority)
-**Goal**: Enable users to interact with the protocol using only USDC
+**Goal**: Enable USDC lenders to participate without holding ETH
 
-Users will be able to pay transaction fees in USDC instead of ETH, removing friction for those who only hold stablecoins. This will be implemented using EIP-4337 account abstraction.
+Following [Circle's USDC Paymaster implementation guide](https://developers.circle.com/stablecoins/quickstart-circle-paymaster), we're implementing gas payment in USDC to remove a key friction point for lenders.
+
+**Design Rationale**:
+USDC lenders often hold stablecoins exclusively and shouldn't need to acquire ETH just to create loan offers. By integrating Circle's Paymaster (v0.8), lenders can:
+- Create loan offers paying gas in USDC
+- Claim repayments without ETH
+- Manage positions using only stablecoins
+- Enjoy a seamless, stablecoin-native experience
+
+**Technical Implementation**:
+- EIP-4337 account abstraction with smart wallets
+- Circle Paymaster for USDC gas payment
+- EIP-2612 permits for gasless approvals
+- Integration with Privy's smart wallet infrastructure
 
 **Planned Features**:
-- Pay gas fees in USDC
-- Seamless UX for non-ETH holders
-- Integration with existing wallet infrastructure
-- Automatic fee conversion and settlement
+- Pay gas fees in USDC for all lender operations
+- Automatic USDC permit generation
+- Bundler integration for UserOperation submission
+- Seamless fallback to ETH for borrowers (who need ETH for collateral anyway)
 
 ### Phase C: Eigenlayer AVS 🔮 (Future Enhancement)
 **Goal**: Create a verifiable and decentralized orderbook
@@ -123,6 +136,48 @@ pnpm dev
 - RPC: https://sepolia.unichain.org
 - Explorer: https://sepolia.uniscan.xyz
 
+## USDC Paymaster Architecture
+
+### Overview
+The USDC Paymaster integration enables lenders to interact with DebtHook using only USDC, eliminating the need to hold ETH for gas fees. This is particularly important for institutional lenders and stablecoin-focused users.
+
+### Technical Flow
+1. **Smart Wallet Creation**: Users get a smart wallet (EIP-4337) through Privy
+2. **USDC Permit**: Users sign an EIP-2612 permit allowing the Paymaster to spend USDC
+3. **UserOperation**: Transactions are bundled as UserOperations with paymaster data
+4. **Gas Payment**: Circle's Paymaster deducts gas costs from user's USDC balance
+5. **Transaction Execution**: The bundler submits the transaction on-chain
+
+### Integration Points
+- **Frontend**: Privy SDK handles smart wallet creation and UserOp building
+- **Paymaster**: Circle's USDC Paymaster (v0.8) on supported networks
+- **Contracts**: `USDCPaymasterIntegration.sol` provides helper functions
+- **Bundler**: Third-party bundler service (e.g., Pimlico) for UserOp submission
+
+### Configuration Steps
+
+1. **Privy Dashboard Setup**:
+   - Navigate to your app settings in [Privy Dashboard](https://dashboard.privy.io)
+   - Enable "Smart Wallets" under the Wallets section
+   - Add Circle's USDC Paymaster URL: `https://paymaster.circle.com/v1/rpc`
+   - Configure supported networks (ensure USDC is available)
+
+2. **Frontend Integration**:
+   - Users see "Pay gas with USDC" toggle in the UI
+   - When enabled, transactions use smart wallets with paymaster
+   - Automatic fallback to regular wallets if paymaster fails
+
+3. **Smart Contract Compatibility**:
+   - All contract functions work with both EOA and smart wallets
+   - No changes needed to existing contract code
+   - Paymaster handles gas abstraction transparently
+
+### Benefits for Lenders
+- **No ETH Required**: Create and manage loan offers with only USDC
+- **Simplified UX**: One-token experience for stablecoin users
+- **Lower Barriers**: Easier onboarding for traditional finance users
+- **Cost Transparency**: Gas fees shown and paid in USDC
+
 ## Security Considerations
 
 - All contracts are designed with security-first principles
@@ -130,6 +185,7 @@ pnpm dev
 - EIP-712 signatures prevent order tampering
 - Atomic liquidations eliminate MEV opportunities
 - Comprehensive test coverage ensures reliability
+- USDC Paymaster uses secure permit signatures
 
 ## Contributing
 
