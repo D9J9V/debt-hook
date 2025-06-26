@@ -11,14 +11,15 @@ DebtHook is a DeFi lending protocol that leverages Uniswap v4 hooks for efficien
 - **Backend**: Supabase for off-chain order management and indexing
 - **Key Innovation**: Liquidations execute directly through Uniswap v4 swaps via hook mechanics
 
-## Implementation Priorities
+## Implementation Status (June 26, 2025)
 
-### Phase A: Uniswap V4 Hook (Current Focus) ✅
-**Status**: Core implementation complete, needs testing and deployment
+### Phase A: Uniswap V4 Hook ✅ DEPLOYED
+**Status**: Successfully deployed to Unichain Sepolia
+- DebtHook deployed at: `0x49e39eFDE0C93F6601d84cb5C6D24c1B23eB00C8`
 - True V4 hook with beforeSwap/afterSwap callbacks
 - Automatic liquidations during ETH/USDC swaps
 - MEV-protected atomic liquidation execution
-- Deployment target: Unichain Sepolia
+- Mined address with permission bits 6, 7, and 3
 
 ### Phase B: USDC Paymaster (Future Enhancement)
 **Goal**: Enable gas-free interactions for users paying only with USDC
@@ -27,12 +28,11 @@ DebtHook is a DeFi lending protocol that leverages Uniswap v4 hooks for efficien
 - Accept USDC payment for transaction costs
 - Seamless UX for non-ETH holders
 
-### Phase C: Eigenlayer Integration (Advanced Feature) ✅
-**Status**: Batch matching integration complete
-- Eigenlayer AVS for orderbook validation
-- Cryptographic proofs for order integrity
-- Slashing for malicious orderbook operators
-- Enhanced trust and decentralization
+### Phase C: EigenLayer Integration ✅ DEPLOYED
+**Status**: Successfully deployed and operational
+- ServiceManager deployed at: `0x3333Bc77EdF180D81ff911d439F02Db9e34e8603` (Ethereum Sepolia)
+- Operator running at: `0x2f131a86C5CB54685f0E940B920c54E152a44B02`
+- Authorized to create batch loans on DebtHook
 - **UniCow Integration**: CoW matching for debt orders (NOT liquidations)
 - Optimal interest rate discovery through batch matching
 - See `unicow/README.md` for rationale and `unicow/CLAUDE.md` for implementation
@@ -206,11 +206,14 @@ git commit -m "Update submodules"
 DebtHook must be deployed to an address with specific permission bits set:
 - **Bit 7 (BEFORE_SWAP_FLAG)**: Enables `beforeSwap` callback
 - **Bit 6 (AFTER_SWAP_FLAG)**: Enables `afterSwap` callback
+- **Bit 3 (BEFORE_SWAP_RETURNS_DELTA_FLAG)**: Enables swap amount modification
 
 The deployment process requires:
-1. Use `HookMiner` to find a salt that produces an address with bits 6 & 7 set
+1. Use `HookMiner` to find a salt that produces an address with bits 6, 7 & 3 set
 2. Deploy using CREATE2 with the mined salt
 3. Verify the deployed address matches expected permissions
+
+**Current Deployment**: `0x49e39eFDE0C93F6601d84cb5C6D24c1B23eB00C8` has the correct permission bits
 
 ### Liquidation Flow via Hooks
 
@@ -241,26 +244,21 @@ The deployment process requires:
 - Explorer: https://sepolia.uniscan.xyz
 - Chainlink ETH/USD price feed: 0xd9c93081210dFc33326B2af4C2c11848095E6a9a
 
-### Deployment Checklist
-1. **Pre-deployment**:
-   - [ ] Run all tests with `forge test`
-   - [ ] Check gas consumption with `forge test --gas-report`
-   - [ ] Verify hook address has correct permission bits
-   - [ ] Update deployment scripts with correct addresses
+### Current Deployment (June 26, 2025)
 
-2. **Deployment**:
-   - [ ] Deploy ChainlinkPriceFeed wrapper
-   - [ ] Mine hook address with HookMiner
-   - [ ] Deploy DebtHook to mined address
-   - [ ] Deploy DebtOrderBook
-   - [ ] Initialize pool in Uniswap V4
-   - [ ] Register hook with PoolManager
+#### Unichain Sepolia
+- **DebtHook**: `0x49e39eFDE0C93F6601d84cb5C6D24c1B23eB00C8` (with operator authorization)
+- **DebtOrderBook**: `0xce060483D67b054cACE5c90001992085b46b4f66`
+- **PoolManager**: `0x1d933AB5bdE2b087a28e24A8E5d4DF77021CFEcC`
+- **USDC Mock**: `0x73CFC55f831b5DD6E5Ee4CEF02E8c05be3F069F6`
+- **ChainlinkPriceFeed**: `0x3333Bc77EdF180D81ff911d439F02Db9e34e8603`
 
-3. **Post-deployment**:
-   - [ ] Verify all contracts on explorer
-   - [ ] Update frontend environment variables
-   - [ ] Test basic loan flow on testnet
-   - [ ] Set up monitoring and alerts
+#### Ethereum Sepolia
+- **ServiceManager**: `0x3333Bc77EdF180D81ff911d439F02Db9e34e8603`
+- **StakeRegistry**: `0x3Df55660F015689174cd42F2FF7D2e36564404b5`
+
+#### Operator
+- **Address**: `0x2f131a86C5CB54685f0E940B920c54E152a44B02` (authorized on DebtHook)
 
 ## Deployment Process
 

@@ -34,6 +34,9 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
 
     // Dirección del treasury para cobrar penalizaciones
     address public immutable treasury;
+    
+    // Mapping for authorized operators (EigenLayer AVS)
+    mapping(address => bool) public authorizedOperators;
 
     // Monedas del pool (ETH y USDC)
     Currency public immutable currency0; // ETH (address(0))
@@ -89,6 +92,7 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
     event LoanCreated(bytes32 indexed loanId, address indexed lender, address indexed borrower);
     event LoanRepaid(bytes32 indexed loanId);
     event LoanLiquidated(bytes32 indexed loanId, uint256 proceeds, uint256 surplus);
+    event OperatorAuthorized(address indexed operator, bool authorized);
 
     // --- Modifiers ---
     modifier onlyOrderBook() {
@@ -114,6 +118,22 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
         currency1 = _currency1;
         fee = _fee;
         tickSpacing = _tickSpacing;
+    }
+
+    // --- Admin Functions ---
+    
+    /**
+     * @notice Authorize or revoke an operator for batch loan creation
+     * @param operator The operator address to authorize/revoke
+     * @param authorized Whether to authorize (true) or revoke (false)
+     */
+    function authorizeOperator(address operator, bool authorized) external {
+        // Only the owner (deployer) can authorize operators
+        // In production, this should be controlled by governance or multisig
+        require(msg.sender == treasury, "DebtHook: Only treasury can authorize operators");
+        
+        authorizedOperators[operator] = authorized;
+        emit OperatorAuthorized(operator, authorized);
     }
 
     // --- Core Logic: Loan Lifecycle Functions ---
@@ -668,8 +688,11 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
         LoanMatch[] calldata matches,
         bytes calldata operatorProof
     ) external override returns (bytes32[] memory loanIds) {
-        // TODO: In production, validate operatorProof against DebtOrderServiceManager
-        // For now, we'll allow any caller to create batch loans for testing
+        // Require caller to be an authorized operator
+        require(authorizedOperators[msg.sender], "DebtHook: Caller is not an authorized operator");
+        
+        // TODO: In production, also validate operatorProof against DebtOrderServiceManager
+        // The proof would contain operator signature and stake information
         
         loanIds = new bytes32[](matches.length);
         

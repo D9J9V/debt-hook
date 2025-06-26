@@ -249,14 +249,16 @@ forge script script/DeployHookOptimized.s.sol \
 
 ## 📋 Deployment Status
 
+> ✅ **Update (Jun 26, 2025)**: Successfully deployed DebtHook with operator authorization! EigenLayer AVS is running on Ethereum Sepolia. The system is ready for end-to-end testing.
+
 | Component | Unichain Sepolia | Ethereum Sepolia | Status |
 |-----------|------------------|------------------|---------|
 | **Smart Contracts** |
-| PoolManager | `0x5b73C5498c1E3b4dbA84de0F1833c4a029d90519` | N/A | ✅ Deployed |
-| DebtHook | **`0x0C075a62FD69EA6Db1F65566911C4f1D221e40c8`** ⛏️ | N/A | ✅ Deployed |
-| DebtOrderBook | `0xDB8cFf278adCCF9E9b5da745B44E754fC4EE3C76` | N/A | ✅ Deployed |
-| ChainlinkPriceFeed | `0x34A1D3fff3958843C43aD80F30b94c510645C316` | N/A | ✅ Deployed |
-| USDC Mock | `0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496` | N/A | ✅ Deployed |
+| PoolManager | `0x1d933AB5bdE2b087a28e24A8E5d4DF77021CFEcC` | N/A | ✅ Deployed |
+| DebtHook | **`0x49e39eFDE0C93F6601d84cb5C6D24c1B23eB00C8`** ⛏️ | N/A | ✅ Deployed with Auth |
+| DebtOrderBook | `0xce060483D67b054cACE5c90001992085b46b4f66` | N/A | ✅ Deployed |
+| ChainlinkPriceFeed | `0x3333Bc77EdF180D81ff911d439F02Db9e34e8603` | N/A | ✅ Deployed |
+| USDC Mock | `0x73CFC55f831b5DD6E5Ee4CEF02E8c05be3F069F6` | N/A | ✅ Deployed |
 | **EigenLayer** |
 | ServiceManager | N/A | `0x3333Bc77EdF180D81ff911d439F02Db9e34e8603` | ✅ Deployed |
 | StakeRegistry | N/A | `0x3Df55660F015689174cd42F2FF7D2e36564404b5` | ✅ Deployed |
@@ -266,7 +268,23 @@ forge script script/DeployHookOptimized.s.sol \
 | EigenLayer Operator | | | ✅ Running |
 | Keeper Bot | | | 🟡 Pending |
 
-> ⛏️ **Note**: The DebtHook address was successfully mined to encode V4 hook permissions in the address itself! The address `0x0C075a62FD69EA6Db1F65566911C4f1D221e40c8` has bits 6, 7, and 3 set, enabling `beforeSwap`, `afterSwap`, and `beforeSwapReturnsDelta` callbacks.
+> ⛏️ **Note**: The DebtHook address was mined to encode V4 hook permissions in the address itself. The address `0x49e39eFDE0C93F6601d84cb5C6D24c1B23eB00C8` has bits 6, 7, and 3 set, enabling `beforeSwap`, `afterSwap`, and `beforeSwapReturnsDelta` callbacks.
+
+### Ready for Testing! 🚀
+
+The protocol is now fully deployed with operator authorization:
+
+1. **✅ DebtHook**: Deployed with mined address and operator authorized
+2. **✅ EigenLayer AVS**: ServiceManager running on Ethereum Sepolia  
+3. **✅ Operator**: Running and monitoring for orders
+4. **🧪 Next**: Submit test orders to verify the complete flow
+
+To test the system:
+```bash
+# 1. Submit test orders to ServiceManager (Ethereum Sepolia)
+# 2. Operator will match and submit to DebtHook (Unichain Sepolia)
+# 3. Monitor logs for batch loan creation
+```
 
 ### Pre-deployment Checklist
 - [ ] Run all smart contract tests

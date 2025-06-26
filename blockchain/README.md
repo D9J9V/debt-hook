@@ -10,11 +10,11 @@ DebtHook is a collateralized lending protocol that revolutionizes liquidations b
 - Liquidations execute automatically during ETH/USDC swaps
 - The protocol operates as a true V4 hook with beforeSwap/afterSwap callbacks
 
-## Current Status
+## Current Status (June 26, 2025)
 
-✅ **Phase A: V4 Hook Implementation** - Complete and ready for testnet deployment
+✅ **Phase A: V4 Hook Implementation** - DEPLOYED to Unichain Sepolia
+✅ **Phase C: EigenLayer AVS** - DEPLOYED to Ethereum Sepolia with operator running
 🚧 **Phase B: USDC Paymaster** - Planned next enhancement
-🔮 **Phase C: Eigenlayer AVS** - Future decentralization upgrade
 
 ## Key Features
 
@@ -23,6 +23,8 @@ DebtHook is a collateralized lending protocol that revolutionizes liquidations b
 - **MEV Protection**: Atomic liquidations prevent frontrunning
 - **Chainlink Price Feeds**: Real-time ETH/USD pricing
 - **Capital Efficiency**: No dedicated liquidator bots needed
+- **EigenLayer AVS**: Decentralized operator network for batch loan matching
+- **Operator Authorization**: Only authorized operators can create batch loans
 
 ## Architecture
 
@@ -150,11 +152,19 @@ forge script script/TestHookMining.s.sol
 
 ### Deployed Addresses (Unichain Sepolia)
 ```
-ChainlinkPriceFeed: [TO BE DEPLOYED]
-DebtHook: [TO BE DEPLOYED]
-DebtOrderBook: [TO BE DEPLOYED]
-USDC: [TO BE DEPLOYED]
-WETH: [TO BE DEPLOYED]
+DebtHook: 0x49e39eFDE0C93F6601d84cb5C6D24c1B23eB00C8 (with operator authorization)
+DebtOrderBook: 0xce060483D67b054cACE5c90001992085b46b4f66
+PoolManager: 0x1d933AB5bdE2b087a28e24A8E5d4DF77021CFEcC
+ChainlinkPriceFeed: 0x3333Bc77EdF180D81ff911d439F02Db9e34e8603
+USDC: 0x73CFC55f831b5DD6E5Ee4CEF02E8c05be3F069F6
+WETH: Native ETH (address(0))
+```
+
+### EigenLayer AVS (Ethereum Sepolia)
+```
+ServiceManager: 0x3333Bc77EdF180D81ff911d439F02Db9e34e8603
+StakeRegistry: 0x3Df55660F015689174cd42F2FF7D2e36564404b5
+Operator: 0x2f131a86C5CB54685f0E940B920c54E152a44B02 (authorized)
 ```
 
 ## Hook Permissions
