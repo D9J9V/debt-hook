@@ -6,6 +6,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 This is the smart contract component of the DebtHook protocol, a DeFi lending platform that leverages Uniswap v4 hooks for efficient liquidations. The protocol enables collateralized lending with ETH as collateral and USDC as the lending currency, featuring innovative liquidation mechanics through AMM integration.
 
+## Implementation Roadmap
+
+### Phase A: V4 Hook Implementation (Current) ✅
+**Status**: Core contracts complete, preparing for deployment
+- [x] DebtHook with beforeSwap/afterSwap callbacks
+- [x] DebtOrderBook with EIP-712 signatures
+- [x] ChainlinkPriceFeed integration
+- [ ] Hook address mining for deployment
+- [ ] Unichain Sepolia deployment
+- [ ] Production testing and monitoring
+
+### Phase B: USDC Paymaster (Next Priority)
+**Implementation Plan**:
+1. Create `DebtPaymaster.sol` implementing IPaymaster
+2. Add EntryPoint integration for EIP-4337
+3. Implement USDC fee calculation logic
+4. Create user operation builder helpers
+5. Test with bundler infrastructure
+
+### Phase C: Eigenlayer AVS (Future)
+**Implementation Plan**:
+1. Design orderbook validation logic
+2. Create AVS operator contracts
+3. Implement slashing conditions
+4. Add proof generation/verification
+5. Integrate with main protocol
+
 ## Common Commands
 
 ```bash
@@ -189,3 +216,53 @@ The protocol uses a unique two-phase liquidation through Uniswap v4:
    - [ ] Security review conducted
    - [ ] Deployment scripts tested on testnet
    - [ ] Contract verification prepared
+
+## Unichain Sepolia Deployment Guide
+
+### Network Configuration
+```solidity
+// Network details
+chainId: 1301
+rpcUrl: "https://sepolia.unichain.org"
+explorer: "https://sepolia.uniscan.xyz"
+
+// Key addresses
+chainlinkETHUSD: 0xd9c93081210dFc33326B2af4C2c11848095E6a9a
+```
+
+### Deployment Steps
+
+1. **Hook Address Mining**
+```bash
+# Mine an address with correct permission bits (0xC0)
+forge script script/MineHookAddress.s.sol
+```
+
+2. **Deploy Contracts**
+```bash
+# Deploy all contracts in sequence
+forge script script/Deploy.s.sol \
+  --rpc-url https://sepolia.unichain.org \
+  --private-key $PRIVATE_KEY \
+  --broadcast \
+  --verify
+```
+
+3. **Post-Deployment**
+```bash
+# Verify contracts
+forge verify-contract <ADDRESS> <CONTRACT> \
+  --chain-id 1301 \
+  --verifier blockscout \
+  --verifier-url https://sepolia.uniscan.xyz/api
+```
+
+### Testing on Unichain Sepolia
+```bash
+# Fork testing
+forge test --fork-url https://sepolia.unichain.org
+
+# Integration tests
+forge test --match-path test/integration/* \
+  --fork-url https://sepolia.unichain.org
+```

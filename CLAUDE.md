@@ -11,6 +11,29 @@ DebtHook is a DeFi lending protocol that leverages Uniswap v4 hooks for efficien
 - **Backend**: Supabase for off-chain order management and indexing
 - **Key Innovation**: Liquidations execute directly through Uniswap v4 swaps via hook mechanics
 
+## Implementation Priorities
+
+### Phase A: Uniswap V4 Hook (Current Focus) ✅
+**Status**: Core implementation complete, needs testing and deployment
+- True V4 hook with beforeSwap/afterSwap callbacks
+- Automatic liquidations during ETH/USDC swaps
+- MEV-protected atomic liquidation execution
+- Deployment target: Unichain Sepolia
+
+### Phase B: USDC Paymaster (Future Enhancement)
+**Goal**: Enable gas-free interactions for users paying only with USDC
+- EIP-4337 account abstraction integration
+- Paymaster contract to sponsor gas fees
+- Accept USDC payment for transaction costs
+- Seamless UX for non-ETH holders
+
+### Phase C: Eigenlayer Integration (Advanced Feature)
+**Goal**: Verifiable and decentralized orderbook
+- Eigenlayer AVS for orderbook validation
+- Cryptographic proofs for order integrity
+- Slashing for malicious orderbook operators
+- Enhanced trust and decentralization
+
 ## Project Structure
 
 ```
@@ -205,5 +228,53 @@ The deployment process requires:
 - Batch liquidations possible in a single swap
 
 ## Deployment Notes
-- We're going to deploy to Unichain Sepolia
+
+### Target Network: Unichain Sepolia
+- Chain ID: 1301
+- RPC: https://sepolia.unichain.org
+- Explorer: https://sepolia.uniscan.xyz
 - Chainlink ETH/USD price feed: 0xd9c93081210dFc33326B2af4C2c11848095E6a9a
+
+### Deployment Checklist
+1. **Pre-deployment**:
+   - [ ] Run all tests with `forge test`
+   - [ ] Check gas consumption with `forge test --gas-report`
+   - [ ] Verify hook address has correct permission bits
+   - [ ] Update deployment scripts with correct addresses
+
+2. **Deployment**:
+   - [ ] Deploy ChainlinkPriceFeed wrapper
+   - [ ] Mine hook address with HookMiner
+   - [ ] Deploy DebtHook to mined address
+   - [ ] Deploy DebtOrderBook
+   - [ ] Initialize pool in Uniswap V4
+   - [ ] Register hook with PoolManager
+
+3. **Post-deployment**:
+   - [ ] Verify all contracts on explorer
+   - [ ] Update frontend environment variables
+   - [ ] Test basic loan flow on testnet
+   - [ ] Set up monitoring and alerts
+
+## Development Best Practices
+
+### When Working on Contracts
+1. Always run tests before committing: `forge test`
+2. Format code with: `forge fmt`
+3. Update interfaces when modifying external functions
+4. Document complex logic with inline comments
+5. Consider gas optimization for frequently called functions
+
+### When Working on Frontend
+1. Test with local fork for realistic conditions
+2. Handle all transaction states (pending, success, error)
+3. Show clear feedback for blockchain interactions
+4. Cache contract reads when appropriate
+5. Use proper error boundaries for Web3 components
+
+### When Integrating New Features
+1. Start with the simplest implementation
+2. Write comprehensive tests first
+3. Document architectural decisions
+4. Consider backwards compatibility
+5. Plan for progressive enhancement

@@ -1,14 +1,20 @@
 # DebtHook Smart Contracts
 
-A DeFi lending protocol built as a Uniswap V4 hook, enabling efficient liquidations through automated swap integration.
+Core smart contracts for the DebtHook protocol - a Uniswap V4 hook implementation enabling automated liquidations within swap transactions.
 
 ## Overview
 
-DebtHook is a collateralized lending protocol where:
-- Users can borrow USDC against ETH collateral
-- Lenders create signed loan offers (gasless via EIP-712)
-- Liquidations happen automatically during Uniswap swaps
-- The protocol functions as a true V4 hook with beforeSwap/afterSwap callbacks
+DebtHook is a collateralized lending protocol that revolutionizes liquidations by integrating directly with Uniswap V4:
+- Borrowers deposit ETH collateral to borrow USDC at fixed rates
+- Lenders create signed loan offers off-chain (gasless via EIP-712)
+- Liquidations execute automatically during ETH/USDC swaps
+- The protocol operates as a true V4 hook with beforeSwap/afterSwap callbacks
+
+## Current Status
+
+✅ **Phase A: V4 Hook Implementation** - Complete and ready for testnet deployment
+🚧 **Phase B: USDC Paymaster** - Planned next enhancement
+🔮 **Phase C: Eigenlayer AVS** - Future decentralization upgrade
 
 ## Key Features
 
@@ -68,33 +74,63 @@ forge test --match-test testLiquidation
 forge test --fork-url https://unichain-sepolia-rpc.publicnode.com
 ```
 
-## Deployment
+## Deployment Guide
+
+### Prerequisites
+- Foundry installed and configured
+- Access to Unichain Sepolia RPC
+- Funded wallet for deployment
 
 ### Local Development
 
 ```bash
-# Start local Anvil chain
-anvil
+# Start local Anvil chain with Unichain Sepolia fork
+anvil --fork-url https://sepolia.unichain.org
 
-# Deploy contracts
+# Deploy all contracts locally
 forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
 ```
 
-### Testnet Deployment
+### Unichain Sepolia Deployment
 
-The deployment process for V4 hooks requires address mining:
+The V4 hook deployment requires careful address mining to ensure proper permissions:
 
-1. **Mine Hook Address**: Find a salt that produces an address with correct permission bits
-2. **Deploy with CREATE2**: Use the mined salt to deploy to the predetermined address
-3. **Verify Permissions**: Ensure the deployed address has beforeSwap/afterSwap enabled
-
+#### Step 1: Mine Hook Address
 ```bash
-# Deploy to Unichain Sepolia
-forge script script/DeployHook.s.sol \
+# This finds a salt that produces an address with bits 6 & 7 set (0xC0)
+forge script script/MineHookAddress.s.sol
+```
+
+#### Step 2: Deploy Contracts
+```bash
+# Set environment variables
+export RPC_URL="https://sepolia.unichain.org"
+export PRIVATE_KEY="your-private-key"
+export ETHERSCAN_API_KEY="your-api-key"
+
+# Deploy all contracts
+forge script script/Deploy.s.sol \
   --rpc-url $RPC_URL \
   --private-key $PRIVATE_KEY \
   --broadcast \
-  --verify
+  --verify \
+  --verifier blockscout \
+  --verifier-url https://sepolia.uniscan.xyz/api
+```
+
+#### Step 3: Post-Deployment Setup
+1. Initialize the ETH/USDC pool in Uniswap V4
+2. Register the hook with PoolManager
+3. Update frontend with deployed addresses
+4. Test basic loan flow
+
+### Deployed Addresses (Unichain Sepolia)
+```
+ChainlinkPriceFeed: [TO BE DEPLOYED]
+DebtHook: [TO BE DEPLOYED]
+DebtOrderBook: [TO BE DEPLOYED]
+USDC: [TO BE DEPLOYED]
+WETH: [TO BE DEPLOYED]
 ```
 
 ## Hook Permissions
