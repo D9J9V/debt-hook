@@ -4,10 +4,10 @@ pragma solidity ^0.8.24;
 import {EIP712} from "solady/utils/EIP712.sol";
 import {ECDSA} from "solady/utils/ECDSA.sol";
 import {ERC20} from "solady/tokens/ERC20.sol";
-import {IDebtProtocol} from "./interfaces/IDebtProtocol.sol";
+import {IDebtHook} from "./interfaces/IDebtHook.sol";
 
 contract DebtOrderBook is EIP712 {
-    IDebtProtocol public immutable debtProtocol;
+    IDebtHook public immutable debtHook;
     ERC20 public immutable usdc;
 
     mapping(uint256 => bool) public usedNonces;
@@ -36,10 +36,10 @@ contract DebtOrderBook is EIP712 {
     event OrderCancelled(uint256 indexed nonce, address indexed lender);
 
     constructor(
-        address _debtProtocolAddress,
+        address _debtHookAddress,
         address _usdcAddress
     ) {
-        debtProtocol = IDebtProtocol(_debtProtocolAddress);
+        debtHook = IDebtHook(_debtHookAddress);
         usdc = ERC20(_usdcAddress);
     }
     
@@ -78,19 +78,16 @@ contract DebtOrderBook is EIP712 {
         usedNonces[order.nonce] = true;
 
         usdc.transferFrom(order.lender, address(this), order.principalAmount);
-        usdc.approve(address(debtProtocol), order.principalAmount);
-
-        uint64 duration = order.maturityTimestamp > block.timestamp 
-            ? uint64(order.maturityTimestamp - block.timestamp)
-            : 0;
+        usdc.approve(address(debtHook), order.principalAmount);
             
-        debtProtocol.createLoan{value: msg.value}(
-            IDebtProtocol.LoanParams({
+        debtHook.createLoan{value: msg.value}(
+            IDebtHook.CreateLoanParams({
                 lender: order.lender,
                 borrower: msg.sender,
-                principal: order.principalAmount,
-                duration: duration,
-                interestRate: uint64(order.interestRateBips)
+                principalAmount: order.principalAmount,
+                collateralAmount: msg.value,
+                maturityTimestamp: order.maturityTimestamp,
+                interestRateBips: order.interestRateBips
             })
         );
 

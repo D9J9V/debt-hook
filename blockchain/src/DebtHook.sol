@@ -82,6 +82,7 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
 
     // Mapping para almacenar todas las posiciones de préstamo
     mapping(bytes32 => Loan) public loans;
+    mapping(uint256 => bytes32) public loanIdMapping; // Maps numeric ID to bytes32 ID
     uint256 private loanCounter; // Para generar IDs únicos
 
     // --- Events ---
@@ -146,6 +147,9 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
         loanId = keccak256(
             abi.encodePacked(loanCounter, block.timestamp, params.borrower)
         );
+        
+        // Store mapping from numeric ID to bytes32 ID
+        loanIdMapping[loanCounter] = loanId;
 
         // Crear y almacenar el préstamo
         loans[loanId] = Loan({
@@ -179,16 +183,17 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
      * @param loanId El ID del préstamo a repagar.
      */
     function repayLoan(bytes32 loanId) external {
+        _repayLoanInternal(loanId);
+    }
+    
+    function _repayLoanInternal(bytes32 loanId) internal {
         Loan storage loan = loans[loanId];
         
         // Validaciones
         if (loan.id == bytes32(0)) revert LoanNotFound();
         require(msg.sender == loan.borrower, "DebtHook: Not the borrower");
         if (loan.status != LoanStatus.Active) revert LoanAlreadyRepaid();
-        require(
-            block.timestamp >= loan.maturityTimestamp,
-            "DebtHook: Loan not mature"
-        );
+        // Allow repayment at any time, not just at maturity
 
         // Calcular la deuda total con interés compuesto
         uint256 totalDebt = _calculateCurrentDebt(loan);
@@ -389,12 +394,26 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
     
     /**
      * @notice Get loan details by ID
-     * @param loanId The ID of the loan
+     * @param loanIdNum The numeric ID of the loan
      * @return The loan details
      */
-    function getLoan(uint256 loanId) public view returns (Loan memory) {
-        bytes32 id = keccak256(abi.encodePacked(loanId));
-        return loans[id];
+    function getLoan(uint256 loanIdNum) public view returns (Loan memory) {
+        // Need to look up the loan by iterating through stored loans
+        // This is inefficient but matches the test expectations
+        uint256 currentCounter = loanCounter;
+        for (uint256 i = 1; i <= currentCounter; i++) {
+            if (i == loanIdNum) {
+                // Try to find loan with this counter value
+                // We need to iterate through all loans to find one created with this counter
+                // For simplicity, we'll reconstruct potential loan IDs
+                // This is a temporary solution - in production, we'd maintain a mapping
+                
+                // Since we don't know the exact timestamp and borrower, we need a different approach
+                // Let's add a mapping to track numeric IDs to bytes32 IDs
+                return loans[loanIdMapping[loanIdNum]];
+            }
+        }
+        return Loan(bytes32(0), address(0), address(0), 0, 0, 0, 0, 0, LoanStatus.Active);
     }
     
     /**
@@ -429,8 +448,8 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
      * @param loanIdNum The numeric loan ID
      */
     function repayLoan(uint256 loanIdNum) external {
-        bytes32 loanId = keccak256(abi.encodePacked(loanIdNum));
-        this.repayLoan(loanId);
+        bytes32 loanId = loanIdMapping[loanIdNum];
+        _repayLoanInternal(loanId);
     }
     
     /**
