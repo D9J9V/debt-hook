@@ -657,4 +657,117 @@ contract DebtHook is BaseHook, IUnlockCallback, IDebtHook {
         // Emit liquidation event
         emit LoanLiquidated(loanId, usdcReceived, excessUSDC);
     }
+
+    /**
+     * @notice Creates multiple loans in batch from matched orders via EigenLayer AVS
+     * @param matches Array of matched loan orders to create
+     * @param operatorProof Proof from the EigenLayer operator (for future validation)
+     * @return loanIds Array of created loan IDs
+     */
+    function createBatchLoans(
+        LoanMatch[] calldata matches,
+        bytes calldata operatorProof
+    ) external override returns (bytes32[] memory loanIds) {
+        // TODO: In production, validate operatorProof against DebtOrderServiceManager
+        // For now, we'll allow any caller to create batch loans for testing
+        
+        loanIds = new bytes32[](matches.length);
+        
+        for (uint256 i = 0; i < matches.length; i++) {
+            LoanMatch calldata match = matches[i];
+            
+            // Create loan parameters from match
+            CreateLoanParams memory params = CreateLoanParams({
+                lender: match.lender,
+                borrower: match.borrower,
+                principalAmount: match.principalAmount,
+                collateralAmount: 0, // Will be provided by borrower separately
+                maturityTimestamp: uint64(match.maturityTimestamp),
+                interestRateBips: uint32(match.interestRateBips)
+            });
+            
+            // Generate loan ID
+            loanCounter++;
+            bytes32 loanId = keccak256(abi.encodePacked(loanCounter, block.timestamp, params.borrower));
+            loanIdMapping[loanCounter] = loanId;
+            
+            // Create loan
+            loans[loanId] = Loan({
+                id: loanId,
+                lender: params.lender,
+                borrower: params.borrower,
+                principalAmount: params.principalAmount,
+                collateralAmount: 0, // To be deposited by borrower
+                creationTimestamp: uint64(block.timestamp),
+                maturityTimestamp: params.maturityTimestamp,
+                interestRateBips: params.interestRateBips,
+                status: LoanStatus.Active
+            });
+            
+            // Track loan for borrower and lender
+            borrowerLoans[params.borrower].push(loanCounter);
+            lenderLoans[params.lender].push(loanCounter);
+            
+            // Transfer USDC from lender to borrower
+            // In production, this would be handled by the ServiceManager after verification
+            ERC20(Currency.unwrap(currency1)).transferFrom(
+                params.lender,
+                params.borrower,
+                params.principalAmount
+            );
+            
+            loanIds[i] = loanId;
+            emit LoanCreated(loanId, params.lender, params.borrower);
+        }
+        
+        return loanIds;
+    }
+
+    /**
+     * @notice Allows borrowers to deposit collateral for loans created via batch matching
+     * @param loanId The ID of the loan to collateralize
+     */
+    function depositCollateral(bytes32 loanId) external payable {
+        Loan storage loan = loans[loanId];
+        
+        require(loan.id != bytes32(0), "DebtHook: Loan not found");
+        require(msg.sender == loan.borrower, "DebtHook: Not the borrower");
+        require(loan.collateralAmount == 0, "DebtHook: Collateral already deposited");
+        require(msg.value > 0, "DebtHook: No collateral provided");
+        
+        // Calculate required collateral based on principal and current ETH price
+        uint256 requiredCollateral = _calculateRequiredCollateral(loan.principalAmount);
+        require(msg.value >= requiredCollateral, "DebtHook: Insufficient collateral");
+        
+        // Update loan with collateral
+        loan.collateralAmount = msg.value;
+    }
+
+    /**
+     * @notice Calculate required collateral for a given principal amount
+     * @param principalAmount The USDC principal amount (6 decimals)
+     * @return The required ETH collateral amount (18 decimals)
+     */
+    function _calculateRequiredCollateral(uint256 principalAmount) internal view returns (uint256) {
+        // Get ETH price from oracle
+        (, int256 ethPriceUSD,,,) = priceFeed.latestRoundData();
+        require(ethPriceUSD > 0, "DebtHook: Invalid price");
+        
+        uint8 priceFeedDecimals = priceFeed.decimals();
+        
+        // Calculate required collateral with 150% collateralization ratio
+        // principalAmount is in USDC (6 decimals)
+        // ethPriceUSD has priceFeedDecimals (typically 8)
+        // We want result in ETH (18 decimals)
+        
+        // Required value in USD = principalAmount * 1.5
+        uint256 requiredValueUSD = (principalAmount * 150) / 100;
+        
+        // Convert to ETH: requiredETH = requiredValueUSD / ethPriceUSD
+        // Adjust decimals: (6 decimals * 10^18) / (price with 8 decimals) = 18 decimals
+        uint256 requiredCollateral = (requiredValueUSD * 10 ** (18 + priceFeedDecimals)) / 
+                                     (uint256(ethPriceUSD) * 10 ** 6);
+        
+        return requiredCollateral;
+    }
 }
