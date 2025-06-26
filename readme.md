@@ -261,8 +261,9 @@ forge script script/DeployHookOptimized.s.sol \
 | ServiceManager | N/A | `0x3333Bc77EdF180D81ff911d439F02Db9e34e8603` | ✅ Deployed |
 | StakeRegistry | N/A | `0x3Df55660F015689174cd42F2FF7D2e36564404b5` | ✅ Deployed |
 | **Infrastructure** |
-| Frontend URL | [app.debthook.io] | | ✅ Ready |
+| Frontend URL | [v0-humane-banque.vercel.app](https://v0-humane-banque.vercel.app) | | ✅ Ready |
 | Supabase | [project-id] | | ✅ Configured |
+| EigenLayer Operator | | | ✅ Running |
 | Keeper Bot | | | 🟡 Pending |
 
 > ⛏️ **Note**: The DebtHook address was successfully mined to encode V4 hook permissions in the address itself! The address `0x0C075a62FD69EA6Db1F65566911C4f1D221e40c8` has bits 6, 7, and 3 set, enabling `beforeSwap`, `afterSwap`, and `beforeSwapReturnsDelta` callbacks.
