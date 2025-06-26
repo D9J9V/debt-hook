@@ -27,8 +27,19 @@ The protocol implements a true V4 hook that monitors the ETH/USDC pool for liqui
 - `DebtOrderBook.sol`: Manages EIP-712 signed loan offers
 - `ChainlinkPriceFeed.sol`: Oracle integration for price data
 
+**Deployment**:
+```bash
+# Quick deployment to Unichain Sepolia
+export PRIVATE_KEY="your-private-key"
+export RPC_URL="https://unichain-sepolia-rpc.publicnode.com"
+forge script blockchain/script/DeployHookOptimized.s.sol \
+  --rpc-url $RPC_URL \
+  --private-key $PRIVATE_KEY \
+  --broadcast
+```
+
 **Next Steps**:
-- [ ] Mine hook address with correct permission bits
+- [x] Mine hook address with correct permission bits
 - [ ] Deploy to Unichain Sepolia testnet
 - [ ] Verify contracts and update frontend
 - [ ] Conduct thorough testing on testnet

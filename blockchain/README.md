@@ -95,27 +95,51 @@ forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
 
 The V4 hook deployment requires careful address mining to ensure proper permissions:
 
-#### Step 1: Mine Hook Address
-```bash
-# This finds a salt that produces an address with bits 6 & 7 set (0xC0)
-forge script script/MineHookAddress.s.sol
-```
-
-#### Step 2: Deploy Contracts
+#### Quick Deployment (Recommended)
 ```bash
 # Set environment variables
-export RPC_URL="https://sepolia.unichain.org"
 export PRIVATE_KEY="your-private-key"
-export ETHERSCAN_API_KEY="your-api-key"
+export RPC_URL="https://unichain-sepolia-rpc.publicnode.com"
+export TREASURY="your-treasury-address" # Optional, defaults to deployer
 
-# Deploy all contracts
-forge script script/Deploy.s.sol \
+# Deploy with automatic hook mining
+forge script script/DeployHookOptimized.s.sol \
   --rpc-url $RPC_URL \
   --private-key $PRIVATE_KEY \
   --broadcast \
-  --verify \
-  --verifier blockscout \
-  --verifier-url https://sepolia.uniscan.xyz/api
+  --verify
+```
+
+This script automatically:
+- Mines an address with correct permission bits (0xC8)
+- Deploys all contracts in the correct order
+- Handles circular dependencies
+- Outputs deployment addresses for frontend configuration
+
+#### Alternative Deployment Options
+
+**Option 1: Detailed Deployment with Logging**
+```bash
+forge script script/DeployHook.s.sol \
+  --rpc-url $RPC_URL \
+  --private-key $PRIVATE_KEY \
+  --broadcast \
+  -vvvv
+```
+
+**Option 2: Quick Testing (No Hook Mining)**
+```bash
+# WARNING: Only for testing, won't work with V4 validation
+forge script script/DeploySimple.s.sol \
+  --rpc-url $RPC_URL \
+  --private-key $PRIVATE_KEY \
+  --broadcast
+```
+
+#### Test Hook Mining Locally
+```bash
+# Verify hook mining works before deployment
+forge script script/TestHookMining.s.sol
 ```
 
 #### Step 3: Post-Deployment Setup
@@ -138,8 +162,9 @@ WETH: [TO BE DEPLOYED]
 DebtHook requires specific permission bits in its address:
 - Bit 7: `BEFORE_SWAP_FLAG` (0x80)
 - Bit 6: `AFTER_SWAP_FLAG` (0x40)
+- Bit 3: `BEFORE_SWAP_RETURNS_DELTA_FLAG` (0x08)
 
-Combined: The address must have `0xC0` in the last byte.
+Combined: The address must have `0xC8` in its permission bits.
 
 ## Liquidation Mechanics
 
