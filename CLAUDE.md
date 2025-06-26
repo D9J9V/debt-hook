@@ -28,11 +28,14 @@ DebtHook is a DeFi lending protocol that leverages Uniswap v4 hooks for efficien
 - Seamless UX for non-ETH holders
 
 ### Phase C: Eigenlayer Integration (Advanced Feature)
-**Goal**: Verifiable and decentralized orderbook
+**Goal**: Decentralized debt order matching with Coincidence of Wants
 - Eigenlayer AVS for orderbook validation
 - Cryptographic proofs for order integrity
 - Slashing for malicious orderbook operators
 - Enhanced trust and decentralization
+- **UniCow Integration**: CoW matching for debt orders (NOT liquidations)
+- Optimal interest rate discovery through batch matching
+- See `unicow/README.md` for rationale and `unicow/CLAUDE.md` for implementation
 
 ## Project Structure
 
@@ -46,8 +49,12 @@ debt-hook/
 │   ├── app/            # App router pages
 │   ├── components/     # React components
 │   └── lib/            # Utilities and hooks
-└── v4-docs/            # Uniswap v4 documentation (submodule)
-    └── docs/           # Implementation guides and best practices
+├── v4-docs/            # Uniswap v4 documentation (submodule)
+│   └── docs/           # Implementation guides and best practices
+└── unicow/             # EigenLayer AVS for CoW market making (submodule)
+    ├── hook/           # Uniswap v4 hook for CoW matching
+    ├── avs/            # EigenLayer service manager
+    └── operator/       # TypeScript operator implementation
 ```
 
 ## Common Commands
@@ -163,6 +170,7 @@ This project uses git submodules for modular development:
 ### Submodules
 1. **dapp**: Next.js frontend application
 2. **v4-docs**: Uniswap v4 documentation for implementation reference
+3. **unicow**: EigenLayer AVS for Coincidence of Wants market making
 
 ### Common Submodule Commands
 ```bash
@@ -179,9 +187,10 @@ git submodule update --remote
 # Update specific submodule
 git submodule update --remote dapp
 git submodule update --remote v4-docs
+git submodule update --remote unicow
 
 # Commit submodule changes
-git add dapp v4-docs
+git add dapp v4-docs unicow
 git commit -m "Update submodules"
 ```
 

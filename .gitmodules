@@ -22,3 +22,6 @@
 [submodule "blockchain/lib/chainlink"]
 	path = blockchain/lib/chainlink
 	url = https://github.com/smartcontractkit/chainlink
+[submodule "unicow"]
+	path = unicow
+	url = git@github.com:D9J9V/UniCow.git
